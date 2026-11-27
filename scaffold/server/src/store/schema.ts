@@ -57,7 +57,10 @@ export interface NoteDoc {
   contact: string;
   authorSub: string;
   authorName: string;
-  text: string;
+  ciphertext: string;
+  iv: string;
+  alg: string;
+  keyId: string;
   createdAt: Date;
 }
 

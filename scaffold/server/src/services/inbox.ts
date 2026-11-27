@@ -280,12 +280,15 @@ export async function addConversationNote(
     contact: string;
     authorSub: string;
     authorName: string;
-    text: string;
+    ciphertext: string;
+    iv: string;
+    alg?: string;
+    keyId?: string;
   }
 ): Promise<NoteDoc> {
-  const { workspace, contact, authorSub, authorName, text } = input;
-  if (!text || typeof text !== 'string' || !text.trim()) {
-    throw new HttpError(400, 'Note text is required');
+  const { workspace, contact, authorSub, authorName, ciphertext, iv, alg, keyId } = input;
+  if (!ciphertext || typeof ciphertext !== 'string' || !iv || typeof iv !== 'string') {
+    throw new HttpError(400, 'Encrypted note requires ciphertext and iv');
   }
   await ensureIndexes(db);
 
@@ -301,7 +304,10 @@ export async function addConversationNote(
     contact,
     authorSub,
     authorName,
-    text: text.trim(),
+    ciphertext,
+    iv,
+    alg: alg && typeof alg === 'string' ? alg : 'AES-256-GCM',
+    keyId: keyId && typeof keyId === 'string' ? keyId : 'default',
     createdAt: new Date(),
   };
 
@@ -309,7 +315,6 @@ export async function addConversationNote(
   await publishWorkspaceEvent(db, redis, workspace, {
     type: 'note.created',
     contact,
-    text: note.text,
     occurred_at: note.createdAt.toISOString(),
   });
 

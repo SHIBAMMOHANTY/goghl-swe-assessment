@@ -181,7 +181,10 @@ export class OutboxWorker {
     }
     await db
       .collection<OutboundMessageDoc>(COLLECTIONS.outboundMessages)
-      .updateOne({ _id: msg._id, leaseOwner: this.workerId }, update);
+      .updateOne(
+        { workspace: msg.workspace, clientRef: msg.clientRef, leaseOwner: this.workerId },
+        update
+      );
   }
 
   private async acquireSendPermit(redis: Redis | null, workspace: string): Promise<number> {
