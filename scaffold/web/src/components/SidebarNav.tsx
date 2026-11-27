@@ -86,7 +86,7 @@ export function SidebarNav({
           onNavigate(id);
           onCloseMobile();
         }}
-        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-[12.5px] font-medium transition-all cursor-pointer ${
+        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg text-[12.5px] font-medium transition-all cursor-pointer ${
           active
             ? 'bg-gradient-to-r from-[#7342f6] to-[#5a28db] text-white shadow-md shadow-indigo-950/40'
             : 'text-violet-100/80 hover:text-white hover:bg-white/10'
@@ -137,31 +137,32 @@ export function SidebarNav({
         />
       </svg>
 
-      {/* Top Brand + Nav (scrollable fallback with hidden native scrollbar) */}
-      <div className="relative z-10 flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {/* Brand Header */}
-        <div className="flex items-center justify-between px-1 pb-1">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#7c4dff] to-[#4f26d6] shadow-md shadow-indigo-950/50 grid place-items-center text-white shrink-0">
-              <BrandIcon />
-            </div>
-            <div>
-              <div className="font-bold text-[15px] leading-tight tracking-tight">Switchboard</div>
-              <div className="text-[10.5px] text-violet-200/75 leading-tight">
-                Shared Team Inbox
-              </div>
+      {/* Pinned Brand Header */}
+      <div className="relative z-10 shrink-0 flex items-center justify-between px-1 pb-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#7c4dff] to-[#4f26d6] shadow-md shadow-indigo-950/50 grid place-items-center text-white shrink-0">
+            <BrandIcon />
+          </div>
+          <div>
+            <div className="font-bold text-[15px] leading-tight tracking-tight">Switchboard</div>
+            <div className="text-[10.5px] text-violet-200/75 leading-tight">
+              Shared Team Inbox
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={onCloseMobile}
-            aria-label="Close navigation"
-            className="lg:hidden rounded-lg p-1 text-violet-200 hover:text-white hover:bg-white/10 cursor-pointer"
-          >
-            ✕
-          </button>
         </div>
+
+        <button
+          type="button"
+          onClick={onCloseMobile}
+          aria-label="Close navigation"
+          className="lg:hidden rounded-lg p-1 text-violet-200 hover:text-white hover:bg-white/10 cursor-pointer"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Scrollable Nav Sections (hidden native scrollbar) */}
+      <div className="relative z-10 flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 
         {/* Workspace Section */}
         <nav className="flex flex-col gap-0.5" aria-label="Main navigation">
@@ -283,7 +284,7 @@ export function SidebarNav({
         </nav>
 
         {/* Manage Section */}
-        <div className="flex flex-col gap-0.5 border-t border-white/10 pt-2.5">
+        <div className="flex flex-col gap-0.5 border-t border-white/10 pt-2">
           <div className="px-2.5 text-[10px] font-semibold tracking-wider uppercase text-violet-300/60 mb-0.5">
             Manage
           </div>
@@ -319,7 +320,7 @@ export function SidebarNav({
         </div>
 
         {/* Settings Section */}
-        <div className="flex flex-col gap-0.5 border-t border-white/10 pt-2.5">
+        <div className="flex flex-col gap-0.5 border-t border-white/10 pt-2">
           <div className="px-2.5 text-[10px] font-semibold tracking-wider uppercase text-violet-300/60 mb-0.5">
             Settings
           </div>

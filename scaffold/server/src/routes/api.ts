@@ -32,6 +32,13 @@ import {
   type WorkspaceSettingsDoc,
 } from '../store/schema.js';
 
+function localDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export interface ApiRouterDeps {
   getDb: () => Promise<Db>;
   getRedis: () => Redis | null;
@@ -371,14 +378,14 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
       const dayBuckets = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(sevenDaysAgo);
         d.setDate(sevenDaysAgo.getDate() + i);
-        const key = d.toISOString().slice(0, 10);
+        const key = localDateKey(d);
         const label = d.toLocaleDateString('en-US', { weekday: 'short' });
         return { key, day: label, contacts: new Set<string>(), messages: 0 };
       });
       const bucketMap = new Map(dayBuckets.map((b) => [b.key, b]));
 
       for (const m of inbound) {
-        const key = m.occurredAt.toISOString().slice(0, 10);
+        const key = localDateKey(m.occurredAt);
         const bucket = bucketMap.get(key);
         if (bucket) {
           bucket.messages++;
@@ -386,7 +393,7 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
         }
       }
       for (const m of outbound) {
-        const key = m.createdAt.toISOString().slice(0, 10);
+        const key = localDateKey(m.createdAt);
         const bucket = bucketMap.get(key);
         if (bucket) {
           bucket.messages++;
@@ -951,14 +958,14 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
         const d = new Date(sevenDaysAgo);
         d.setDate(sevenDaysAgo.getDate() + i);
         return {
-          key: d.toISOString().slice(0, 10),
+          key: localDateKey(d),
           day: d.toLocaleDateString('en-US', { weekday: 'short' }),
           conversations: 0,
         };
       });
       const bucketMap = new Map(dayBuckets.map((b) => [b.key, b]));
       for (const c of conversations) {
-        const bucket = bucketMap.get(c.updatedAt.toISOString().slice(0, 10));
+        const bucket = bucketMap.get(localDateKey(c.updatedAt));
         if (bucket) bucket.conversations++;
       }
 
@@ -1633,7 +1640,7 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
         const d = new Date(start);
         d.setDate(start.getDate() + i);
         return {
-          key: d.toISOString().slice(0, 10),
+          key: localDateKey(d),
           label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           conversations: 0,
           messages: 0,
@@ -1645,7 +1652,7 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
       const bucketByDay = new Map(buckets.map((b) => [b.key, b]));
 
       for (const c of inRangeConvs) {
-        const key = c.lastActivityAt.toISOString().slice(0, 10);
+        const key = localDateKey(c.lastActivityAt);
         const b = bucketByDay.get(key);
         if (!b) continue;
         b.conversations++;
@@ -1663,11 +1670,11 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
         }
       }
       for (const m of inbound) {
-        const b = bucketByDay.get(m.occurredAt.toISOString().slice(0, 10));
+        const b = bucketByDay.get(localDateKey(m.occurredAt));
         if (b) b.messages++;
       }
       for (const m of outbound) {
-        const b = bucketByDay.get(m.createdAt.toISOString().slice(0, 10));
+        const b = bucketByDay.get(localDateKey(m.createdAt));
         if (b) b.messages++;
       }
 
