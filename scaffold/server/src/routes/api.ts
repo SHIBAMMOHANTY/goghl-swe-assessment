@@ -17,6 +17,7 @@ import {
 import {
   COLLECTIONS,
   ensureIndexes,
+  type BillingPlanId,
   type ContactDoc,
   type ConversationDoc,
   type EventDoc,
@@ -26,6 +27,8 @@ import {
   type SessionDoc,
   type TeamInviteDoc,
   type TeamRole,
+  type UserProfileDoc,
+  type WorkspaceBillingDoc,
   type WorkspaceSettingsDoc,
 } from '../store/schema.js';
 
@@ -85,14 +88,77 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
 
   router.use(requireSession);
 
-  router.get('/me', (req: AuthenticatedRequest, res) => {
-    const s = req.session!;
-    res.status(200).json({
-      sub: s.sub,
-      name: s.name,
-      email: s.email,
-      workspaces: s.workspaces,
-    });
+  router.get('/me', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const s = req.session!;
+      const db = await deps.getDb();
+      const profile = await db
+        .collection<UserProfileDoc>(COLLECTIONS.userProfiles)
+        .findOne({ _id: s.sub });
+
+      res.status(200).json({
+        sub: s.sub,
+        name: profile?.name || s.name,
+        email: profile?.email || s.email,
+        phone: profile?.phone || '',
+        theme: profile?.theme || 'light',
+        language: profile?.language || 'English',
+        workspaces: s.workspaces,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.patch('/me', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const s = req.session!;
+      const db = await deps.getDb();
+      await ensureIndexes(db);
+
+      const existing = await db
+        .collection<UserProfileDoc>(COLLECTIONS.userProfiles)
+        .findOne({ _id: s.sub });
+
+      const nextDoc: UserProfileDoc = {
+        _id: s.sub,
+        name:
+          typeof req.body?.name === 'string' && req.body.name.trim()
+            ? req.body.name.trim().slice(0, 80)
+            : (existing?.name ?? s.name),
+        email:
+          typeof req.body?.email === 'string' && req.body.email.trim()
+            ? req.body.email.trim().slice(0, 120)
+            : (existing?.email ?? s.email),
+        phone:
+          typeof req.body?.phone === 'string'
+            ? req.body.phone.trim().slice(0, 40)
+            : (existing?.phone ?? ''),
+        theme: req.body?.theme === 'system' ? 'system' : (req.body?.theme === 'light' ? 'light' : (existing?.theme ?? 'light')),
+        language:
+          typeof req.body?.language === 'string' && req.body.language.trim()
+            ? req.body.language.trim().slice(0, 32)
+            : (existing?.language ?? 'English'),
+        updatedAt: new Date(),
+      };
+
+      await db
+        .collection<UserProfileDoc>(COLLECTIONS.userProfiles)
+        .updateOne({ _id: s.sub }, { $set: nextDoc }, { upsert: true });
+
+      res.status(200).json({
+        ok: true,
+        sub: s.sub,
+        name: nextDoc.name,
+        email: nextDoc.email,
+        phone: nextDoc.phone,
+        theme: nextDoc.theme,
+        language: nextDoc.language,
+        workspaces: s.workspaces,
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 
   function resolveWorkspaceAccess(
@@ -1538,6 +1604,206 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
         })),
         agentPerformance: agentStats,
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  const PLAN_MONTHLY_INR: Record<BillingPlanId, number> = {
+    starter: 1499,
+    professional: 3999,
+    enterprise: 9999,
+  };
+
+  function defaultWorkspaceBilling(workspace: string): WorkspaceBillingDoc {
+    const nextBillingAt = new Date();
+    nextBillingAt.setDate(nextBillingAt.getDate() + 30);
+    const now = new Date();
+    const m1 = new Date(now);
+    const m2 = new Date(now);
+    m2.setMonth(m2.getMonth() - 1);
+    const m3 = new Date(now);
+    m3.setMonth(m3.getMonth() - 2);
+
+    return {
+      _id: workspace,
+      plan: 'professional',
+      cycle: 'monthly',
+      totalSeats: 10,
+      status: 'Active',
+      nextBillingAt,
+      invoices: [
+        {
+          id: `INV-${workspace.toUpperCase()}-103`,
+          date: m1.toISOString(),
+          planLabel: 'Professional (Monthly)',
+          amountInr: 3999,
+          status: 'Paid',
+        },
+        {
+          id: `INV-${workspace.toUpperCase()}-102`,
+          date: m2.toISOString(),
+          planLabel: 'Professional (Monthly)',
+          amountInr: 3999,
+          status: 'Paid',
+        },
+        {
+          id: `INV-${workspace.toUpperCase()}-101`,
+          date: m3.toISOString(),
+          planLabel: 'Professional (Monthly)',
+          amountInr: 3999,
+          status: 'Paid',
+        },
+      ],
+      updatedAt: now,
+    };
+  }
+
+  router.get('/billing', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const access = resolveWorkspaceAccess(req, res, req.query.workspace);
+      if (!access) return;
+
+      const db = await deps.getDb();
+      await ensureIndexes(db);
+
+      const [stored, conversations, inbound, outbound, invites] = await Promise.all([
+        db
+          .collection<WorkspaceBillingDoc>(COLLECTIONS.workspaceBilling)
+          .findOne({ _id: access.workspace }),
+        db
+          .collection<ConversationDoc>(COLLECTIONS.conversations)
+          .find({ workspace: access.workspace })
+          .toArray(),
+        db
+          .collection<InboundMessageDoc>(COLLECTIONS.inboundMessages)
+          .find({ workspace: access.workspace })
+          .toArray(),
+        db
+          .collection<OutboundMessageDoc>(COLLECTIONS.outboundMessages)
+          .find({ workspace: access.workspace })
+          .toArray(),
+        db
+          .collection<TeamInviteDoc>(COLLECTIONS.teamInvites)
+          .find({ workspace: access.workspace })
+          .toArray(),
+      ]);
+
+      const billing = stored ?? defaultWorkspaceBilling(access.workspace);
+      const members = [
+        ...DIRECTORY_USERS.filter((u) =>
+          u.workspaces.some((w) => w.id === access.workspace)
+        ).map((u) => ({
+          id: u.sub,
+          name: u.name,
+          email: u.email,
+          role: u.workspaces.find((w) => w.id === access.workspace)!.role,
+        })),
+        ...invites.map((inv) => ({
+          id: inv.email,
+          name: inv.name,
+          email: inv.email,
+          role: inv.role,
+        })),
+      ];
+
+      res.status(200).json({
+        workspace: access.workspace,
+        billing: {
+          plan: billing.plan,
+          cycle: billing.cycle,
+          totalSeats: billing.totalSeats,
+          status: billing.status,
+          nextBillingAt: billing.nextBillingAt.toISOString(),
+          invoices: billing.invoices,
+        },
+        usage: {
+          usedSeats: members.length,
+          conversations: conversations.length,
+          messages: inbound.length + outbound.length,
+        },
+        members,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.patch('/billing', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const workspace =
+        (typeof req.body?.workspace === 'string' && req.body.workspace) || req.query.workspace;
+      const access = resolveWorkspaceAccess(req, res, workspace);
+      if (!access) return;
+
+      if (access.role !== 'admin') {
+        res.status(403).json({ error: 'Only workspace admins can update billing' });
+        return;
+      }
+
+      const db = await deps.getDb();
+      await ensureIndexes(db);
+      const existing =
+        (await db
+          .collection<WorkspaceBillingDoc>(COLLECTIONS.workspaceBilling)
+          .findOne({ _id: access.workspace })) ?? defaultWorkspaceBilling(access.workspace);
+
+      const nextPlan: BillingPlanId =
+        req.body?.plan === 'starter' ||
+        req.body?.plan === 'professional' ||
+        req.body?.plan === 'enterprise'
+          ? req.body.plan
+          : existing.plan;
+
+      const nextCycle: 'monthly' | 'annual' =
+        req.body?.cycle === 'monthly' || req.body?.cycle === 'annual'
+          ? req.body.cycle
+          : existing.cycle;
+
+      const rawSeats = Number(req.body?.totalSeats);
+      const defaultSeatsForPlan =
+        nextPlan === 'starter' ? 3 : nextPlan === 'professional' ? 10 : 25;
+      const nextSeats = Number.isFinite(rawSeats)
+        ? Math.min(500, Math.max(1, Math.trunc(rawSeats)))
+        : req.body?.plan && req.body.plan !== existing.plan
+          ? defaultSeatsForPlan
+          : existing.totalSeats;
+
+      const planChanged = nextPlan !== existing.plan || nextCycle !== existing.cycle;
+      const unitMonthly = PLAN_MONTHLY_INR[nextPlan];
+      const effectiveMonthly =
+        nextCycle === 'annual' ? Math.round(unitMonthly * 0.8) : unitMonthly;
+      const invoiceAmount = nextCycle === 'annual' ? effectiveMonthly * 12 : effectiveMonthly;
+      const planTitle = nextPlan[0].toUpperCase() + nextPlan.slice(1);
+      const cycleTitle = nextCycle === 'annual' ? 'Annual' : 'Monthly';
+
+      const invoices = planChanged
+        ? [
+            {
+              id: `INV-${access.workspace.toUpperCase()}-${Date.now().toString().slice(-4)}`,
+              date: new Date().toISOString(),
+              planLabel: `${planTitle} (${cycleTitle})`,
+              amountInr: invoiceAmount,
+              status: 'Paid' as const,
+            },
+            ...existing.invoices,
+          ].slice(0, 20)
+        : existing.invoices;
+
+      const updated: WorkspaceBillingDoc = {
+        ...existing,
+        plan: nextPlan,
+        cycle: nextCycle,
+        totalSeats: nextSeats,
+        invoices,
+        updatedAt: new Date(),
+      };
+
+      await db
+        .collection<WorkspaceBillingDoc>(COLLECTIONS.workspaceBilling)
+        .updateOne({ _id: access.workspace }, { $set: updated }, { upsert: true });
+
+      res.status(200).json({ ok: true, billing: updated });
     } catch (err) {
       next(err);
     }

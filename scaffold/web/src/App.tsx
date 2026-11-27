@@ -17,14 +17,20 @@ import {
   type MeResponse,
   type TimelineItem,
 } from './api';
+import { AccountSettingsView } from './components/AccountSettingsView';
 import { AppHeader } from './components/AppHeader';
+import { BillingView } from './components/BillingView';
 import { ContactsView } from './components/ContactsView';
 import { DashboardView } from './components/DashboardView';
+import { ErrorPage } from './components/ErrorPage';
 import { InboxDashboard, type InboxFilter } from './components/InboxDashboard';
 import { LoginScreen } from './components/LoginScreen';
+import { NotificationsView } from './components/NotificationsView';
+import { ReportsView } from './components/ReportsView';
 import { SearchView } from './components/SearchView';
 import { SidebarNav, type ActiveScreen } from './components/SidebarNav';
 import { TeamManagementView } from './components/TeamManagementView';
+import { UserProfileView } from './components/UserProfileView';
 import { WorkspaceSettingsView } from './components/WorkspaceSettingsView';
 import {
   computeKeyId,
@@ -43,6 +49,37 @@ interface WsEventFrame {
   status?: 'queued' | 'sent' | 'delivered' | 'failed';
 }
 
+const ROUTE_TO_SCREEN: Record<string, ActiveScreen> = {
+  '/': 'dashboard',
+  '/dashboard': 'dashboard',
+  '/inbox': 'inbox',
+  '/contacts': 'contacts',
+  '/search': 'search',
+  '/team': 'assignments',
+  '/reports': 'reports',
+  '/integrations': 'integrations',
+  '/billing': 'billing',
+  '/settings': 'settings',
+  '/notifications': 'notifications',
+  '/profile': 'profile',
+  '/account': 'account',
+};
+
+const SCREEN_TO_ROUTE: Record<ActiveScreen, string> = {
+  dashboard: '/',
+  inbox: '/inbox',
+  contacts: '/contacts',
+  search: '/search',
+  assignments: '/team',
+  reports: '/reports',
+  integrations: '/integrations',
+  billing: '/billing',
+  settings: '/settings',
+  notifications: '/notifications',
+  profile: '/profile',
+  account: '/account',
+};
+
 function makeClientRef(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `ui_${crypto.randomUUID()}`;
@@ -51,9 +88,14 @@ function makeClientRef(): string {
 }
 
 export function App() {
+  const [pathname, setPathname] = useState<string>(() => window.location.pathname || '/');
+  const [fatalError, setFatalError] = useState(false);
+
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [workspace, setWorkspace] = useState<string>('');
-  const [activeScreen, setActiveScreen] = useState<ActiveScreen>('dashboard');
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen>(
+    () => ROUTE_TO_SCREEN[window.location.pathname || '/'] ?? 'dashboard'
+  );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [filter, setFilter] = useState<InboxFilter>('all');
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -77,6 +119,29 @@ export function App() {
   selectedContactRef.current = selectedContact;
 
   useEffect(() => {
+    const onPop = () => {
+      const path = window.location.pathname || '/';
+      setPathname(path);
+      if (ROUTE_TO_SCREEN[path]) {
+        setActiveScreen(ROUTE_TO_SCREEN[path]);
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const navigateScreen = useCallback((screen: ActiveScreen) => {
+    setActiveScreen(screen);
+    setFatalError(false);
+    const nextPath = SCREEN_TO_ROUTE[screen] ?? '/';
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, '', nextPath);
+      setPathname(nextPath);
+    }
+  }, []);
+
+  const loadSession = useCallback(() => {
+    setFatalError(false);
     fetchMe()
       .then((user) => {
         setMe(user);
@@ -89,6 +154,10 @@ export function App() {
         setError(err instanceof Error ? err.message : 'Failed to load session');
       });
   }, []);
+
+  useEffect(() => {
+    loadSession();
+  }, [loadSession]);
 
   useEffect(() => {
     if (!workspace) return;
@@ -284,6 +353,30 @@ export function App() {
     [selectedConversationDetail, conversations, selectedContact]
   );
 
+  // Standalone 500 & 404 Error Pages (without the dashboard sidebar)
+  if (fatalError || pathname === '/500') {
+    return (
+      <ErrorPage
+        code="500"
+        onRetryOrBack={() => {
+          if (pathname === '/500') navigateScreen('dashboard');
+          else loadSession();
+        }}
+        onGoToDashboard={() => navigateScreen('dashboard')}
+      />
+    );
+  }
+
+  if (!ROUTE_TO_SCREEN[pathname]) {
+    return (
+      <ErrorPage
+        code="404"
+        onGoToDashboard={() => navigateScreen('dashboard')}
+        onRetryOrBack={() => window.history.back()}
+      />
+    );
+  }
+
   if (me === undefined) {
     return (
       <div className="min-h-screen bg-slate-50 grid place-items-center text-sm text-slate-500">
@@ -332,12 +425,12 @@ export function App() {
   function openInInbox(contact: string) {
     setFilter('all');
     setSelectedContact(contact);
-    setActiveScreen('inbox');
+    navigateScreen('inbox');
   }
 
   function openInboxWithFilter(nextFilter: InboxFilter) {
     setFilter(nextFilter);
-    setActiveScreen('inbox');
+    navigateScreen('inbox');
   }
 
   return (
@@ -348,7 +441,7 @@ export function App() {
         stats={dashboard?.stats ?? null}
         mobileOpen={mobileNavOpen}
         onCloseMobile={() => setMobileNavOpen(false)}
-        onNavigate={setActiveScreen}
+        onNavigate={navigateScreen}
         onSelectInboxFilter={openInboxWithFilter}
       />
 
@@ -363,7 +456,7 @@ export function App() {
           wsConnected={wsConnected}
           recentEvents={dashboard?.recentEvents ?? []}
           onOpenMobileNav={() => setMobileNavOpen(true)}
-          onNavigate={setActiveScreen}
+          onNavigate={navigateScreen}
           onLogout={() => {
             void logout().then(() => setMe(null));
           }}
@@ -426,7 +519,7 @@ export function App() {
                 ? runAction(() => updateConversationTags(workspace, selectedContact, tags))
                 : Promise.resolve()
             }
-            onOpenSettings={() => setActiveScreen('settings')}
+            onOpenSettings={() => navigateScreen('settings')}
           />
         )}
 
@@ -462,6 +555,10 @@ export function App() {
           />
         )}
 
+        {activeScreen === 'reports' && <ReportsView workspace={workspace} />}
+
+        {activeScreen === 'billing' && <BillingView me={me} workspace={workspace} />}
+
         {activeScreen === 'search' && (
           <SearchView
             workspace={workspace}
@@ -470,7 +567,35 @@ export function App() {
           />
         )}
 
-        {activeScreen === 'settings' && (
+        {activeScreen === 'notifications' && (
+          <NotificationsView
+            sub={me.sub}
+            workspace={workspace}
+            recentEvents={dashboard?.recentEvents ?? []}
+            onOpenConversation={openInInbox}
+          />
+        )}
+
+        {activeScreen === 'profile' && (
+          <UserProfileView
+            me={me}
+            workspace={workspace}
+            onMeUpdated={setMe}
+            onOpenAccountSettings={() => navigateScreen('account')}
+          />
+        )}
+
+        {activeScreen === 'account' && (
+          <AccountSettingsView
+            me={me}
+            wsConnected={wsConnected}
+            lastSeq={lastSeq}
+            onMeUpdated={setMe}
+            onOpenWorkspaceSecurity={() => navigateScreen('settings')}
+          />
+        )}
+
+        {(activeScreen === 'settings' || activeScreen === 'integrations') && (
           <WorkspaceSettingsView
             me={me}
             workspace={workspace}
@@ -478,6 +603,7 @@ export function App() {
             keyId={keyId}
             wsConnected={wsConnected}
             lastSeq={lastSeq}
+            initialSection={activeScreen === 'integrations' ? 'integrations' : 'profile'}
             onWorkspaceKeyChange={setWorkspaceKey}
           />
         )}

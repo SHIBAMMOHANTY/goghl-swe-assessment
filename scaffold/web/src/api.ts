@@ -7,7 +7,23 @@ export interface MeResponse {
   sub: string;
   name: string;
   email: string;
+  phone?: string;
+  theme?: 'light' | 'system';
+  language?: string;
   workspaces: WorkspaceMembership[];
+}
+
+export function updateMe(patch: {
+  name?: string;
+  email?: string;
+  phone?: string;
+  theme?: 'light' | 'system';
+  language?: string;
+}): Promise<MeResponse & { ok: boolean }> {
+  return requestJson('/api/me', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
 }
 
 export interface ConversationSummary {
@@ -425,6 +441,52 @@ export interface ReportsResponse {
     resolutionRate: number;
     avgResolutionSec: number | null;
   }>;
+}
+
+export type BillingPlanId = 'starter' | 'professional' | 'enterprise';
+
+export interface BillingResponse {
+  workspace: string;
+  billing: {
+    plan: BillingPlanId;
+    cycle: 'monthly' | 'annual';
+    totalSeats: number;
+    status: 'Active' | 'Trial';
+    nextBillingAt: string;
+    invoices: Array<{
+      id: string;
+      date: string;
+      planLabel: string;
+      amountInr: number;
+      status: 'Paid';
+    }>;
+  };
+  usage: {
+    usedSeats: number;
+    conversations: number;
+    messages: number;
+  };
+  members: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: TeamRole;
+  }>;
+}
+
+export function fetchBilling(workspace: string): Promise<BillingResponse> {
+  const qs = new URLSearchParams({ workspace });
+  return requestJson(`/api/billing?${qs.toString()}`);
+}
+
+export function updateBilling(
+  workspace: string,
+  patch: Partial<{ plan: BillingPlanId; cycle: 'monthly' | 'annual'; totalSeats: number }>
+): Promise<{ ok: boolean }> {
+  return requestJson('/api/billing', {
+    method: 'PATCH',
+    body: JSON.stringify({ workspace, ...patch }),
+  });
 }
 
 export function fetchReports(workspace: string, days: 7 | 14 | 30 = 7): Promise<ReportsResponse> {

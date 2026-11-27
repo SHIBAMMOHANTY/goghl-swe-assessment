@@ -31,6 +31,7 @@ interface WorkspaceSettingsViewProps {
   keyId: string | null;
   wsConnected: boolean;
   lastSeq: number | undefined;
+  initialSection?: SettingsSection;
   onWorkspaceKeyChange: (nextKey: string) => void;
 }
 
@@ -100,11 +101,16 @@ export function WorkspaceSettingsView({
   keyId,
   wsConnected,
   lastSeq,
+  initialSection = 'profile',
   onWorkspaceKeyChange,
 }: WorkspaceSettingsViewProps) {
-  const [section, setSection] = useState<SettingsSection>('profile');
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   // Mobile starts on settings list first, then opens each section full-screen
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
+
+  useEffect(() => {
+    setSection(initialSection);
+  }, [initialSection]);
 
   const [payload, setPayload] = useState<WorkspaceSettingsPayload | null>(null);
   const [members, setMembers] = useState<TeamMemberSummary[]>([]);

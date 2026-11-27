@@ -875,6 +875,77 @@ describe('Pigeon webhooks, inbox, outbox, auth, and WebSockets', () => {
     assert.equal(afterPatch.settings.name, 'Acme Support HQ');
     assert.equal(afterPatch.settings.notifications.soundEnabled, false);
 
+    // Reports & Analytics endpoint: GET /api/reports
+    const reportsRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/reports?workspace=ws_acme&days=7',
+      headers: { cookie: `sb_session=${ashaSession._id}` },
+    });
+    assert.equal(reportsRes.status, 200);
+    const rep = reportsRes.json() as {
+      days: number;
+      summary: { totalConversations: number };
+      volumeSeries: Array<{ date: string }>;
+      agentPerformance: Array<{ id: string }>;
+    };
+    assert.equal(rep.days, 7);
+    assert.equal(rep.summary.totalConversations, 1);
+    assert.equal(rep.volumeSeries.length, 7);
+    assert.ok(rep.agentPerformance.length >= 1);
+
+    // Billing endpoints: GET /api/billing + admin-only PATCH /api/billing
+    const billingRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/billing?workspace=ws_acme',
+      headers: { cookie: `sb_session=${benSession._id}` },
+    });
+    assert.equal(billingRes.status, 200);
+    assert.equal(
+      (billingRes.json() as { billing: { plan: string } }).billing.plan,
+      'professional'
+    );
+
+    const agentBillingDenied = await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/billing',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({ workspace: 'ws_acme', plan: 'starter' }),
+    });
+    assert.equal(agentBillingDenied.status, 403);
+
+    const adminBillingOk = await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/billing',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${ashaSession._id}` },
+      body: JSON.stringify({ workspace: 'ws_acme', plan: 'enterprise', cycle: 'annual' }),
+    });
+    assert.equal(adminBillingOk.status, 200);
+
+    // User Profile & Account Settings: PATCH /api/me + GET /api/me persistence
+    const patchMeRes = await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/me',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({
+        name: 'Ben Ortiz Updated',
+        phone: '+91 98765 43210',
+        theme: 'system',
+        language: 'Hindi',
+      }),
+    });
+    assert.equal(patchMeRes.status, 200);
+    const getUpdatedMe = (
+      await invokeApp(app, {
+        method: 'GET',
+        url: '/api/me',
+        headers: { cookie: `sb_session=${benSession._id}` },
+      })
+    ).json() as { name: string; phone: string; theme: string; language: string };
+    assert.equal(getUpdatedMe.name, 'Ben Ortiz Updated');
+    assert.equal(getUpdatedMe.phone, '+91 98765 43210');
+    assert.equal(getUpdatedMe.theme, 'system');
+    assert.equal(getUpdatedMe.language, 'Hindi');
+
     // Outbox lease expiration failover: simulate dead worker holding expired lease
     await db
       .collection<OutboundMessageDoc>(COLLECTIONS.outboundMessages)

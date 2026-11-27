@@ -12,7 +12,40 @@ export const COLLECTIONS = {
   oauthStates: 'oauth_states',
   teamInvites: 'team_invites',
   workspaceSettings: 'workspace_settings',
+  workspaceBilling: 'workspace_billing',
+  userProfiles: 'user_profiles',
 } as const;
+
+export interface UserProfileDoc {
+  _id: string; // sub
+  name: string;
+  email: string;
+  phone: string;
+  theme: 'light' | 'system';
+  language: string;
+  updatedAt: Date;
+}
+
+export type BillingPlanId = 'starter' | 'professional' | 'enterprise';
+
+export interface BillingInvoiceItem {
+  id: string;
+  date: string;
+  planLabel: string;
+  amountInr: number;
+  status: 'Paid';
+}
+
+export interface WorkspaceBillingDoc {
+  _id: string; // workspace id
+  plan: BillingPlanId;
+  cycle: 'monthly' | 'annual';
+  totalSeats: number;
+  status: 'Active' | 'Trial';
+  nextBillingAt: Date;
+  invoices: BillingInvoiceItem[];
+  updatedAt: Date;
+}
 
 export interface WorkspaceSettingsDoc {
   _id: string; // workspace id

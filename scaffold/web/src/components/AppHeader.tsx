@@ -207,8 +207,18 @@ export function AppHeader({
 
           {notifOpen && (
             <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-slate-200 shadow-xl py-2 z-40">
-              <div className="px-3.5 py-1.5 text-xs font-semibold text-slate-800 border-b border-slate-100">
-                Real-time Events
+              <div className="px-3.5 py-1.5 flex items-center justify-between text-xs font-semibold text-slate-800 border-b border-slate-100">
+                <span>Real-time Events</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotifOpen(false);
+                    onNavigate('notifications');
+                  }}
+                  className="text-[11px] font-semibold text-[#602ee0] hover:underline cursor-pointer"
+                >
+                  View all &rarr;
+                </button>
               </div>
               <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
                 {recentEvents.length === 0 ? (
@@ -268,12 +278,42 @@ export function AppHeader({
               <button
                 type="button"
                 onClick={() => {
+                  onNavigate('profile');
+                  setUserOpen(false);
+                }}
+                className="w-full text-left px-3.5 py-2 text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                My Profile
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigate('account');
+                  setUserOpen(false);
+                }}
+                className="w-full text-left px-3.5 py-2 text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Account Settings
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigate('notifications');
+                  setUserOpen(false);
+                }}
+                className="w-full text-left px-3.5 py-2 text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                Notifications
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   onNavigate('settings');
                   setUserOpen(false);
                 }}
                 className="w-full text-left px-3.5 py-2 text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                Workspace &amp; Profile
+                Workspace Settings
               </button>
               <button
                 type="button"

@@ -6,8 +6,14 @@ export type ActiveScreen =
   | 'inbox'
   | 'contacts'
   | 'assignments'
+  | 'reports'
+  | 'integrations'
+  | 'billing'
   | 'search'
-  | 'settings';
+  | 'settings'
+  | 'notifications'
+  | 'profile'
+  | 'account';
 
 interface SidebarNavProps {
   activeScreen: ActiveScreen;
@@ -84,7 +90,7 @@ export function SidebarNav({
     badge?: number;
   }> = [
     { filter: 'all', label: 'All Conversations' },
-    { filter: 'mine', label: 'My Conversations' },
+    { filter: 'mine', label: 'Mine' },
     { filter: 'unassigned', label: 'Unassigned', badge: stats?.unassigned ?? 0 },
     { filter: 'closed', label: 'Closed' },
   ];
@@ -133,8 +139,11 @@ export function SidebarNav({
           </button>
         </div>
 
-        {/* Primary Section */}
+        {/* Workspace Section */}
         <nav className="flex flex-col gap-1" aria-label="Main navigation">
+          <div className="px-3 text-[10px] font-semibold tracking-wider uppercase text-violet-300/60 mb-1">
+            Workspace
+          </div>
           {navBtn(
             'dashboard',
             'Dashboard',
@@ -217,6 +226,22 @@ export function SidebarNav({
               <path d="M16 3.13a3.5 3.5 0 0 1 0 6.75" />
             </svg>
           )}
+          {navBtn(
+            'reports',
+            'Reports & Analytics',
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7 16v-4M12 16V8M17 16v-6" strokeLinecap="round" />
+            </svg>
+          )}
+          {navBtn(
+            'integrations',
+            'Integrations',
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          )}
         </div>
 
         {/* Settings Section */}
@@ -226,10 +251,34 @@ export function SidebarNav({
           </div>
           {navBtn(
             'settings',
-            'Workspace & Profile',
+            'Workspace Settings',
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+            </svg>
+          )}
+          {navBtn(
+            'notifications',
+            'Notifications',
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" strokeLinecap="round" />
+            </svg>
+          )}
+          {navBtn(
+            'billing',
+            'Billing',
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <path d="M2 10h20" />
+            </svg>
+          )}
+          {navBtn(
+            'profile',
+            'My Profile',
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5" strokeLinecap="round" />
             </svg>
           )}
         </div>
@@ -264,7 +313,7 @@ export function SidebarNav({
             ['inbox', 'Inbox'],
             ['contacts', 'Contacts'],
             ['assignments', 'Team'],
-            ['settings', 'Profile'],
+            ['profile', 'Profile'],
           ] as const
         ).map(([id, label]) => {
           const active = activeScreen === id;
