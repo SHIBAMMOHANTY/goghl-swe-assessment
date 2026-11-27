@@ -2,6 +2,7 @@ import type { Db } from 'mongodb';
 
 export const COLLECTIONS = {
   conversations: 'conversations',
+  contacts: 'contacts',
   inboundMessages: 'inbound_messages',
   outboundMessages: 'outbound_messages',
   notes: 'notes',
@@ -9,7 +10,46 @@ export const COLLECTIONS = {
   counters: 'counters',
   sessions: 'sessions',
   oauthStates: 'oauth_states',
+  teamInvites: 'team_invites',
+  workspaceSettings: 'workspace_settings',
 } as const;
+
+export interface WorkspaceSettingsDoc {
+  _id: string; // workspace id
+  name: string;
+  slug: string;
+  description: string;
+  timezone: string;
+  channels: {
+    pigeonEnabled: boolean;
+    emailEnabled: boolean;
+  };
+  notifications: {
+    newMessageAlerts: boolean;
+    assignmentAlerts: boolean;
+    soundEnabled: boolean;
+    dailyDigest: boolean;
+  };
+  security: {
+    enforcePkce: boolean;
+    sessionTtlHours: number;
+    strictTenantIsolation: boolean;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ContactDoc {
+  workspace: string;
+  contact: string;
+  name: string;
+  email: string;
+  location: string;
+  type: 'customer' | 'lead';
+  tags: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface ConversationDoc {
   workspace: string;
@@ -100,6 +140,18 @@ export interface SessionDoc {
   expiresAt: Date;
 }
 
+export type TeamRole = 'admin' | 'manager' | 'agent' | 'viewer';
+
+export interface TeamInviteDoc {
+  workspace: string;
+  email: string;
+  name: string;
+  role: TeamRole;
+  status: 'active' | 'away' | 'offline';
+  invitedBy: string;
+  createdAt: Date;
+}
+
 export interface OAuthStateDoc {
   _id: string;
   nonce: string;
@@ -122,6 +174,9 @@ export function ensureIndexes(db: Db): Promise<void> {
       db.collection(COLLECTIONS.conversations).createIndexes([
         { key: { workspace: 1, contact: 1 }, unique: true },
         { key: { workspace: 1, lastActivityAt: -1, contact: 1 } },
+      ]),
+      db.collection(COLLECTIONS.contacts).createIndexes([
+        { key: { workspace: 1, contact: 1 }, unique: true },
       ]),
       db.collection(COLLECTIONS.inboundMessages).createIndexes([
         { key: { workspace: 1, messageId: 1 }, unique: true },

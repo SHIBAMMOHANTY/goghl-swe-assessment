@@ -4,6 +4,7 @@ import type { InboxFilter } from './InboxDashboard';
 export type ActiveScreen =
   | 'dashboard'
   | 'inbox'
+  | 'contacts'
   | 'assignments'
   | 'search'
   | 'settings';
@@ -182,6 +183,16 @@ export function SidebarNav({
           </div>
 
           {navBtn(
+            'contacts',
+            'Contacts',
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
+              <rect x="4" y="3" width="16" height="18" rx="2" />
+              <circle cx="12" cy="10" r="2.5" />
+              <path d="M8.5 16.5c.8-1.6 2-2.5 3.5-2.5s2.7.9 3.5 2.5" strokeLinecap="round" />
+            </svg>
+          )}
+
+          {navBtn(
             'search',
             'Search',
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
@@ -245,12 +256,13 @@ export function SidebarNav({
       {/* Mobile bottom navigation bar matching reference phone UI */}
       <nav
         aria-label="Mobile navigation"
-        className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 grid grid-cols-4 py-1.5 px-2"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 grid grid-cols-5 py-1.5 px-1"
       >
         {(
           [
             ['dashboard', 'Home'],
             ['inbox', 'Inbox'],
+            ['contacts', 'Contacts'],
             ['assignments', 'Team'],
             ['settings', 'Profile'],
           ] as const

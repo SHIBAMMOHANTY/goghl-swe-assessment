@@ -694,7 +694,14 @@ describe('Pigeon webhooks, inbox, outbox, auth, and WebSockets', () => {
       headers: { cookie: `sb_session=${benSession._id}` },
     });
     assert.equal(searchRes.status, 200);
-    assert.equal((searchRes.json() as { results: unknown[] }).results.length, 1);
+    const searchJson = searchRes.json() as {
+      results: Array<{ kind: string; score: number }>;
+      encryptedNotes: Array<{ ciphertext: string; iv: string }>;
+    };
+    assert.ok(searchJson.results.length >= 1);
+    assert.ok(searchJson.results.some((r) => r.kind === 'message'));
+    assert.equal(searchJson.encryptedNotes.length, 1);
+    assert.equal(searchJson.encryptedNotes[0].ciphertext, 'ZW5jcnlwdGVkX2J5dGVz');
 
     const crossTenantSearch = await invokeApp(app, {
       method: 'GET',
@@ -753,6 +760,120 @@ describe('Pigeon webhooks, inbox, outbox, auth, and WebSockets', () => {
     });
     assert.equal(tagRes.status, 200);
     assert.deepEqual((tagRes.json() as { tags: string[] }).tags, ['order', 'delivery']);
+
+    // Team management endpoints: GET /api/team + POST /api/team/invites (admin only)
+    const teamRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/team?workspace=ws_acme',
+      headers: { cookie: `sb_session=${ashaSession._id}` },
+    });
+    assert.equal(teamRes.status, 200);
+    const teamBody = teamRes.json() as {
+      summary: { totalAgents: number; active: number };
+      members: Array<{ id: string }>;
+    };
+    assert.equal(teamBody.summary.totalAgents, 3);
+    assert.ok(teamBody.summary.active >= 2);
+
+    const agentInviteDenied = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/team/invites',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({ workspace: 'ws_acme', email: 'new@acme.test', role: 'agent' }),
+    });
+    assert.equal(agentInviteDenied.status, 403);
+
+    const adminInviteOk = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/team/invites',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${ashaSession._id}` },
+      body: JSON.stringify({ workspace: 'ws_acme', email: 'new@acme.test', role: 'manager' }),
+    });
+    assert.equal(adminInviteOk.status, 201);
+
+    // Contacts directory endpoints: POST /api/contacts, PATCH /api/contacts/:contact, GET /api/contacts
+    const createContactRes = await invokeApp(app, {
+      method: 'POST',
+      url: '/api/contacts',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({
+        workspace: 'ws_acme',
+        contact: '+14155550199',
+        name: 'John Davis',
+        email: 'john.davis@acme.test',
+        location: 'New York, USA',
+        type: 'lead',
+      }),
+    });
+    assert.equal(createContactRes.status, 201);
+
+    const patchContactRes = await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/contacts/%2B14155550199',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({
+        workspace: 'ws_acme',
+        type: 'customer',
+        tags: ['premium', 'repeat'],
+      }),
+    });
+    assert.equal(patchContactRes.status, 200);
+
+    const listContactsRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/contacts?workspace=ws_acme&type=customer',
+      headers: { cookie: `sb_session=${benSession._id}` },
+    });
+    assert.equal(listContactsRes.status, 200);
+    const listBody = listContactsRes.json() as {
+      counts: { all: number; customer: number; lead: number };
+      contacts: Array<{ contact: string; name: string; tags: string[] }>;
+    };
+    assert.equal(listBody.counts.all, 2);
+    assert.equal(listBody.counts.customer, 2);
+    assert.ok(listBody.contacts.some((c) => c.contact === '+14155550199' && c.name === 'John Davis'));
+
+    // Workspace settings endpoints: GET + PATCH (admin only)
+    const getSettingsRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/workspace/settings?workspace=ws_acme',
+      headers: { cookie: `sb_session=${benSession._id}` },
+    });
+    assert.equal(getSettingsRes.status, 200);
+    assert.equal(
+      (getSettingsRes.json() as { settings: { name: string } }).settings.name,
+      'Acme Store'
+    );
+
+    const agentPatchDenied = await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/workspace/settings',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({ workspace: 'ws_acme', name: 'Hacked' }),
+    });
+    assert.equal(agentPatchDenied.status, 403);
+
+    const adminPatchOk = await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/workspace/settings',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${ashaSession._id}` },
+      body: JSON.stringify({
+        workspace: 'ws_acme',
+        name: 'Acme Support HQ',
+        notifications: { soundEnabled: false },
+      }),
+    });
+    assert.equal(adminPatchOk.status, 200);
+
+    const afterPatch = (
+      await invokeApp(app, {
+        method: 'GET',
+        url: '/api/workspace/settings?workspace=ws_acme',
+        headers: { cookie: `sb_session=${ashaSession._id}` },
+      })
+    ).json() as { settings: { name: string; notifications: { soundEnabled: boolean } } };
+    assert.equal(afterPatch.settings.name, 'Acme Support HQ');
+    assert.equal(afterPatch.settings.notifications.soundEnabled, false);
 
     // Outbox lease expiration failover: simulate dead worker holding expired lease
     await db

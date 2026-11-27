@@ -18,13 +18,14 @@ import {
   type TimelineItem,
 } from './api';
 import { AppHeader } from './components/AppHeader';
-import { AssignmentsView } from './components/AssignmentsView';
+import { ContactsView } from './components/ContactsView';
 import { DashboardView } from './components/DashboardView';
 import { InboxDashboard, type InboxFilter } from './components/InboxDashboard';
 import { LoginScreen } from './components/LoginScreen';
-import { ProfileSettingsView } from './components/ProfileSettingsView';
 import { SearchView } from './components/SearchView';
 import { SidebarNav, type ActiveScreen } from './components/SidebarNav';
+import { TeamManagementView } from './components/TeamManagementView';
+import { WorkspaceSettingsView } from './components/WorkspaceSettingsView';
 import {
   computeKeyId,
   decryptNote,
@@ -429,8 +430,28 @@ export function App() {
           />
         )}
 
+        {activeScreen === 'contacts' && (
+          <ContactsView
+            me={me}
+            workspace={workspace}
+            workspaceKey={workspaceKey}
+            onOpenInInbox={openInInbox}
+            onAddEncryptedNote={async (contact, plaintext) => {
+              let key = workspaceKey;
+              if (!key) {
+                key = await generateWorkspaceKey();
+                setStoredWorkspaceKey(workspace, key);
+                setWorkspaceKey(key);
+              }
+              const encrypted = await encryptNote(key, workspace, contact, plaintext);
+              await addNote(workspace, contact, encrypted);
+              await loadInbox(null);
+            }}
+          />
+        )}
+
         {activeScreen === 'assignments' && (
-          <AssignmentsView
+          <TeamManagementView
             me={me}
             workspace={workspace}
             conversations={conversations}
@@ -442,11 +463,15 @@ export function App() {
         )}
 
         {activeScreen === 'search' && (
-          <SearchView workspace={workspace} onOpenConversation={openInInbox} />
+          <SearchView
+            workspace={workspace}
+            workspaceKey={workspaceKey}
+            onOpenConversation={openInInbox}
+          />
         )}
 
         {activeScreen === 'settings' && (
-          <ProfileSettingsView
+          <WorkspaceSettingsView
             me={me}
             workspace={workspace}
             workspaceKey={workspaceKey}

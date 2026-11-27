@@ -58,11 +58,29 @@ export interface DashboardResponse {
 }
 
 export interface SearchResultItem {
-  kind: 'inbound' | 'outbound';
+  kind: 'conversation' | 'contact' | 'message' | 'note';
+  direction?: 'inbound' | 'outbound';
   id: string;
   contact: string;
+  contactName: string;
+  title: string;
+  subtitle: string;
   text: string;
-  status?: 'queued' | 'sent' | 'delivered' | 'failed';
+  status?: string;
+  tags?: string[];
+  at: string;
+  score: number;
+}
+
+export interface SearchEncryptedNoteItem {
+  id: string;
+  contact: string;
+  contactName: string;
+  ciphertext: string;
+  iv: string;
+  alg: string;
+  keyId: string;
+  authorName: string;
   at: string;
 }
 
@@ -142,7 +160,11 @@ export function fetchDashboard(workspace: string): Promise<DashboardResponse> {
 export function searchMessages(
   workspace: string,
   q: string
-): Promise<{ workspace: string; results: SearchResultItem[] }> {
+): Promise<{
+  workspace: string;
+  results: SearchResultItem[];
+  encryptedNotes: SearchEncryptedNoteItem[];
+}> {
   const qs = new URLSearchParams({ workspace, q });
   return requestJson(`/api/search?${qs.toString()}`);
 }
@@ -223,6 +245,222 @@ export function addNote(
   });
 }
 
+export type TeamRole = 'admin' | 'manager' | 'agent' | 'viewer';
+
+export interface TeamMemberSummary {
+  id: string;
+  name: string;
+  email: string;
+  role: TeamRole;
+  status: 'active' | 'away' | 'offline';
+  conversations: number;
+  closedConversations: number;
+  lastActiveAt: string | null;
+  joinedAt: string;
+  source: 'directory' | 'invite';
+}
+
+export interface TeamResponse {
+  workspace: string;
+  summary: {
+    totalAgents: number;
+    active: number;
+    away: number;
+    offline: number;
+  };
+  activity: Array<{ day: string; conversations: number }>;
+  performance: {
+    avgFirstResponseSec: number | null;
+    conversationsHandled: number;
+    resolutionRate: number;
+    messagesSent: number;
+  };
+  roleCounts: Record<TeamRole, number>;
+  members: TeamMemberSummary[];
+}
+
 export function logout(): Promise<{ ok: boolean }> {
   return requestJson('/auth/logout', { method: 'POST' });
+}
+
+export function fetchTeam(workspace: string): Promise<TeamResponse> {
+  const qs = new URLSearchParams({ workspace });
+  return requestJson(`/api/team?${qs.toString()}`);
+}
+
+export interface ContactDirectoryItem {
+  workspace: string;
+  contact: string;
+  name: string;
+  email: string;
+  location: string;
+  type: 'customer' | 'lead';
+  tags: string[];
+  assignee: string | null;
+  conversationStatus: 'open' | 'closed' | null;
+  lastMessagePreview: string;
+  messageCount: number;
+  createdAt: string;
+  lastActivityAt: string;
+}
+
+export interface ContactsListResponse {
+  workspace: string;
+  counts: { all: number; customer: number; lead: number };
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  contacts: ContactDirectoryItem[];
+}
+
+export function fetchContacts(params: {
+  workspace: string;
+  type?: 'all' | 'customer' | 'lead';
+  q?: string;
+  page?: number;
+  limit?: number;
+}): Promise<ContactsListResponse> {
+  const qs = new URLSearchParams({ workspace: params.workspace });
+  if (params.type && params.type !== 'all') qs.set('type', params.type);
+  if (params.q) qs.set('q', params.q);
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+  return requestJson(`/api/contacts?${qs.toString()}`);
+}
+
+export function createContact(input: {
+  workspace: string;
+  contact: string;
+  name: string;
+  email?: string;
+  location?: string;
+  type: 'customer' | 'lead';
+}): Promise<{ ok: boolean }> {
+  return requestJson('/api/contacts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateContact(
+  workspace: string,
+  contact: string,
+  patch: Partial<{
+    name: string;
+    email: string;
+    location: string;
+    type: 'customer' | 'lead';
+    tags: string[];
+  }>
+): Promise<{ ok: boolean }> {
+  return requestJson(`/api/contacts/${encodeURIComponent(contact)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ workspace, ...patch }),
+  });
+}
+
+export interface WorkspaceSettingsPayload {
+  workspace: string;
+  settings: {
+    name: string;
+    slug: string;
+    description: string;
+    timezone: string;
+    channels: { pigeonEnabled: boolean; emailEnabled: boolean };
+    notifications: {
+      newMessageAlerts: boolean;
+      assignmentAlerts: boolean;
+      soundEnabled: boolean;
+      dailyDigest: boolean;
+    };
+    security: {
+      enforcePkce: boolean;
+      sessionTtlHours: number;
+      strictTenantIsolation: boolean;
+    };
+    createdAt: string;
+  };
+  metrics: {
+    members: number;
+    conversations: number;
+  };
+  integrations: {
+    pigeonUrl: string;
+    maskedPigeonKey: string;
+    webhookPath: string;
+    oidcIssuer: string;
+    elasticsearchUrl: string;
+  };
+}
+
+export interface ReportsResponse {
+  workspace: string;
+  days: number;
+  summary: {
+    totalConversations: number;
+    resolved: number;
+    open: number;
+    assignedOpen: number;
+    unassigned: number;
+    resolutionRate: number;
+    avgFirstResponseSec: number | null;
+    avgResolutionSec: number | null;
+  };
+  volumeSeries: Array<{
+    date: string;
+    label: string;
+    conversations: number;
+    messages: number;
+    resolved: number;
+    avgFirstResponseSec: number | null;
+    avgResolutionSec: number | null;
+  }>;
+  agentPerformance: Array<{
+    id: string;
+    name: string;
+    email: string;
+    conversations: number;
+    resolved: number;
+    resolutionRate: number;
+    avgResolutionSec: number | null;
+  }>;
+}
+
+export function fetchReports(workspace: string, days: 7 | 14 | 30 = 7): Promise<ReportsResponse> {
+  const qs = new URLSearchParams({ workspace, days: String(days) });
+  return requestJson(`/api/reports?${qs.toString()}`);
+}
+
+export function fetchWorkspaceSettings(workspace: string): Promise<WorkspaceSettingsPayload> {
+  const qs = new URLSearchParams({ workspace });
+  return requestJson(`/api/workspace/settings?${qs.toString()}`);
+}
+
+export function updateWorkspaceSettings(
+  workspace: string,
+  patch: Partial<WorkspaceSettingsPayload['settings']>
+): Promise<{ ok: boolean }> {
+  return requestJson('/api/workspace/settings', {
+    method: 'PATCH',
+    body: JSON.stringify({ workspace, ...patch }),
+  });
+}
+
+export function removeTeamInvite(workspace: string, email: string): Promise<{ ok: boolean }> {
+  const qs = new URLSearchParams({ workspace });
+  return requestJson(`/api/team/invites/${encodeURIComponent(email)}?${qs.toString()}`, {
+    method: 'DELETE',
+  });
+}
+
+export function inviteTeamAgent(
+  workspace: string,
+  email: string,
+  role: TeamRole
+): Promise<{ ok: boolean }> {
+  return requestJson('/api/team/invites', {
+    method: 'POST',
+    body: JSON.stringify({ workspace, email, role }),
+  });
 }
