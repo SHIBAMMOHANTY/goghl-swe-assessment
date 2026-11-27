@@ -25,7 +25,7 @@ export function ProfileSettingsView({
   onWorkspaceKeyChange,
 }: ProfileSettingsViewProps) {
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-4 bg-slate-50">
+    <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 bg-slate-50">
       <div>
         <h2 className="text-lg font-bold text-slate-900 m-0">User Profile &amp; Settings</h2>
         <p className="text-xs text-slate-500 mt-1 mb-0">
@@ -34,9 +34,9 @@ export function ProfileSettingsView({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl">
-        <section className="bg-white border border-slate-200 rounded-xl p-5">
+        <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
           <h3 className="text-sm font-semibold text-slate-900 mt-0 mb-3">Agent Profile</h3>
-          <dl className="grid grid-cols-[150px_1fr] gap-y-2 gap-x-3 text-xs m-0">
+          <dl className="grid grid-cols-1 sm:grid-cols-[150px_1fr] gap-y-2 gap-x-3 text-xs m-0">
             <dt className="text-slate-500">Name</dt>
             <dd className="m-0 font-medium text-slate-900">{me.name}</dd>
             <dt className="text-slate-500">Subject (sub)</dt>
@@ -63,9 +63,9 @@ export function ProfileSettingsView({
           </dl>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-xl p-5">
+        <section className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5">
           <h3 className="text-sm font-semibold text-slate-900 mt-0 mb-3">Real-Time Connection</h3>
-          <dl className="grid grid-cols-[150px_1fr] gap-y-2 gap-x-3 text-xs m-0">
+          <dl className="grid grid-cols-1 sm:grid-cols-[150px_1fr] gap-y-2 gap-x-3 text-xs m-0">
             <dt className="text-slate-500">Active Workspace</dt>
             <dd className="m-0">
               <code className="text-slate-800">{workspace}</code>

@@ -3,24 +3,28 @@ import {
   addNote,
   claimConversation,
   fetchConversations,
+  fetchDashboard,
   fetchMe,
   fetchMessages,
-  fetchStats,
   logout,
   releaseConversation,
   sendReply,
   setConversationStatus,
+  updateConversationTags,
+  type ConversationHistoryItem,
   type ConversationSummary,
-  type InboxStats,
+  type DashboardResponse,
   type MeResponse,
   type TimelineItem,
 } from './api';
+import { AppHeader } from './components/AppHeader';
 import { AssignmentsView } from './components/AssignmentsView';
+import { DashboardView } from './components/DashboardView';
 import { InboxDashboard, type InboxFilter } from './components/InboxDashboard';
 import { LoginScreen } from './components/LoginScreen';
 import { ProfileSettingsView } from './components/ProfileSettingsView';
 import { SearchView } from './components/SearchView';
-import { TopNav, type ActiveScreen } from './components/TopNav';
+import { SidebarNav, type ActiveScreen } from './components/SidebarNav';
 import {
   computeKeyId,
   decryptNote,
@@ -48,15 +52,17 @@ function makeClientRef(): string {
 export function App() {
   const [me, setMe] = useState<MeResponse | null | undefined>(undefined);
   const [workspace, setWorkspace] = useState<string>('');
-  const [activeScreen, setActiveScreen] = useState<ActiveScreen>('inbox');
-  const [filter, setFilter] = useState<InboxFilter>('open');
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen>('dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [filter, setFilter] = useState<InboxFilter>('all');
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [stats, setStats] = useState<InboxStats | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selectedContact, setSelectedContact] = useState<string | null>(null);
   const [selectedConversationDetail, setSelectedConversationDetail] =
     useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<TimelineItem[]>([]);
+  const [history, setHistory] = useState<ConversationHistoryItem[]>([]);
   const [decryptedNotes, setDecryptedNotes] = useState<Record<string, string>>({});
   const [wsConnected, setWsConnected] = useState(false);
   const [lastSeq, setLastSeq] = useState<number | undefined>(undefined);
@@ -105,20 +111,20 @@ export function App() {
       try {
         const apiStatus =
           filter === 'closed' ? 'closed' : filter === 'all' ? 'all' : 'open';
-        const [convRes, statsRes] = await Promise.all([
+        const [convRes, dashRes] = await Promise.all([
           fetchConversations({ workspace, status: apiStatus, cursor }),
-          cursor ? Promise.resolve(null) : fetchStats(workspace),
+          cursor ? Promise.resolve(null) : fetchDashboard(workspace),
         ]);
         setConversations((prev) =>
           cursor ? [...prev, ...convRes.conversations] : convRes.conversations
         );
         setNextCursor(convRes.nextCursor);
-        if (statsRes) setStats(statsRes);
+        if (dashRes) setDashboard(dashRes);
         if (!cursor && convRes.conversations.length > 0 && !selectedContactRef.current) {
           setSelectedContact(convRes.conversations[0].contact);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load conversations');
+        setError(err instanceof Error ? err.message : 'Failed to load workspace data');
       }
     },
     [workspace, filter]
@@ -128,6 +134,7 @@ export function App() {
     async (contact: string | null) => {
       if (!workspace || !contact) {
         setMessages([]);
+        setHistory([]);
         setSelectedConversationDetail(null);
         return;
       }
@@ -135,6 +142,7 @@ export function App() {
         const res = await fetchMessages(workspace, contact);
         setSelectedConversationDetail(res.conversation);
         setMessages(res.messages);
+        setHistory(res.history ?? []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load messages');
       }
@@ -186,6 +194,7 @@ export function App() {
     setSelectedContact(null);
     setSelectedConversationDetail(null);
     setMessages([]);
+    setHistory([]);
     void loadInbox(null);
   }, [workspace, filter, loadInbox]);
 
@@ -325,95 +334,129 @@ export function App() {
     setActiveScreen('inbox');
   }
 
+  function openInboxWithFilter(nextFilter: InboxFilter) {
+    setFilter(nextFilter);
+    setActiveScreen('inbox');
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-slate-50 text-slate-900">
-      <TopNav
-        me={me}
-        workspace={workspace}
-        onWorkspaceChange={(ws) => {
-          setWorkspace(ws);
-          setError(null);
-        }}
-        wsConnected={wsConnected}
+    <div className="h-screen flex overflow-hidden bg-[#f5f6fc] text-slate-900">
+      <SidebarNav
         activeScreen={activeScreen}
+        inboxFilter={filter}
+        stats={dashboard?.stats ?? null}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
         onNavigate={setActiveScreen}
-        onLogout={() => {
-          void logout().then(() => setMe(null));
-        }}
+        onSelectInboxFilter={openInboxWithFilter}
       />
 
-      {error && (
-        <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700">
-          {error}
-        </div>
-      )}
-
-      {activeScreen === 'inbox' && (
-        <InboxDashboard
+      <div className="flex-1 min-w-0 flex flex-col">
+        <AppHeader
           me={me}
           workspace={workspace}
-          filter={filter}
-          onFilterChange={setFilter}
-          stats={stats}
-          conversations={visibleConversations}
-          nextCursor={nextCursor}
-          onLoadMore={() => void loadInbox(nextCursor)}
-          selectedContact={selectedContact}
-          activeConversation={activeConversation}
-          onSelectContact={setSelectedContact}
-          messages={messages}
-          decryptedNotes={decryptedNotes}
-          workspaceKey={workspaceKey}
-          keyId={keyId}
-          busy={busy}
-          onSendReply={handleSendReply}
-          onAddEncryptedNote={handleAddEncryptedNote}
-          onClaim={() =>
-            selectedContact
-              ? runAction(() => claimConversation(workspace, selectedContact))
-              : Promise.resolve()
-          }
-          onRelease={() =>
-            selectedContact
-              ? runAction(() => releaseConversation(workspace, selectedContact))
-              : Promise.resolve()
-          }
-          onToggleStatus={(action) =>
-            selectedContact
-              ? runAction(() => setConversationStatus(workspace, selectedContact, action))
-              : Promise.resolve()
-          }
-          onOpenSettings={() => setActiveScreen('settings')}
-        />
-      )}
-
-      {activeScreen === 'assignments' && (
-        <AssignmentsView
-          me={me}
-          workspace={workspace}
-          conversations={conversations}
-          busy={busy}
-          onClaim={(contact) => runAction(() => claimConversation(workspace, contact))}
-          onRelease={(contact) => runAction(() => releaseConversation(workspace, contact))}
-          onOpenConversation={openInInbox}
-        />
-      )}
-
-      {activeScreen === 'search' && (
-        <SearchView workspace={workspace} onOpenConversation={openInInbox} />
-      )}
-
-      {activeScreen === 'settings' && (
-        <ProfileSettingsView
-          me={me}
-          workspace={workspace}
-          workspaceKey={workspaceKey}
-          keyId={keyId}
+          onWorkspaceChange={(ws) => {
+            setWorkspace(ws);
+            setError(null);
+          }}
           wsConnected={wsConnected}
-          lastSeq={lastSeq}
-          onWorkspaceKeyChange={setWorkspaceKey}
+          recentEvents={dashboard?.recentEvents ?? []}
+          onOpenMobileNav={() => setMobileNavOpen(true)}
+          onNavigate={setActiveScreen}
+          onLogout={() => {
+            void logout().then(() => setMe(null));
+          }}
         />
-      )}
+
+        {error && (
+          <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-xs text-red-700">
+            {error}
+          </div>
+        )}
+
+        {activeScreen === 'dashboard' && (
+          <DashboardView
+            me={me}
+            workspace={workspace}
+            dashboard={dashboard}
+            onOpenInboxFilter={openInboxWithFilter}
+            onOpenConversation={openInInbox}
+          />
+        )}
+
+        {activeScreen === 'inbox' && (
+          <InboxDashboard
+            me={me}
+            workspace={workspace}
+            filter={filter}
+            onFilterChange={setFilter}
+            stats={dashboard?.stats ?? null}
+            conversations={visibleConversations}
+            nextCursor={nextCursor}
+            onLoadMore={() => void loadInbox(nextCursor)}
+            selectedContact={selectedContact}
+            activeConversation={activeConversation}
+            onSelectContact={setSelectedContact}
+            messages={messages}
+            history={history}
+            decryptedNotes={decryptedNotes}
+            workspaceKey={workspaceKey}
+            keyId={keyId}
+            busy={busy}
+            onSendReply={handleSendReply}
+            onAddEncryptedNote={handleAddEncryptedNote}
+            onClaim={() =>
+              selectedContact
+                ? runAction(() => claimConversation(workspace, selectedContact))
+                : Promise.resolve()
+            }
+            onRelease={() =>
+              selectedContact
+                ? runAction(() => releaseConversation(workspace, selectedContact))
+                : Promise.resolve()
+            }
+            onToggleStatus={(action) =>
+              selectedContact
+                ? runAction(() => setConversationStatus(workspace, selectedContact, action))
+                : Promise.resolve()
+            }
+            onUpdateTags={(tags) =>
+              selectedContact
+                ? runAction(() => updateConversationTags(workspace, selectedContact, tags))
+                : Promise.resolve()
+            }
+            onOpenSettings={() => setActiveScreen('settings')}
+          />
+        )}
+
+        {activeScreen === 'assignments' && (
+          <AssignmentsView
+            me={me}
+            workspace={workspace}
+            conversations={conversations}
+            busy={busy}
+            onClaim={(contact) => runAction(() => claimConversation(workspace, contact))}
+            onRelease={(contact) => runAction(() => releaseConversation(workspace, contact))}
+            onOpenConversation={openInInbox}
+          />
+        )}
+
+        {activeScreen === 'search' && (
+          <SearchView workspace={workspace} onOpenConversation={openInInbox} />
+        )}
+
+        {activeScreen === 'settings' && (
+          <ProfileSettingsView
+            me={me}
+            workspace={workspace}
+            workspaceKey={workspaceKey}
+            keyId={keyId}
+            wsConnected={wsConnected}
+            lastSeq={lastSeq}
+            onWorkspaceKeyChange={setWorkspaceKey}
+          />
+        )}
+      </div>
     </div>
   );
 }

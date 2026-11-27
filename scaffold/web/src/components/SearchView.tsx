@@ -29,7 +29,7 @@ export function SearchView({ workspace, onOpenConversation }: SearchViewProps) {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-4 bg-slate-50">
+    <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 bg-slate-50">
       <div>
         <h2 className="text-lg font-bold text-slate-900 m-0">Message Search</h2>
         <p className="text-xs text-slate-500 mt-1 mb-0">

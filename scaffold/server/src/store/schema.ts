@@ -16,6 +16,7 @@ export interface ConversationDoc {
   contact: string;
   assignee: string | null;
   status: 'open' | 'closed';
+  tags?: string[];
   lastActivityAt: Date;
   lastMessagePreview: string;
   createdAt: Date;

@@ -670,6 +670,24 @@ describe('Pigeon webhooks, inbox, outbox, auth, and WebSockets', () => {
       closed: 0,
     });
 
+    const dashRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/dashboard?workspace=ws_acme',
+      headers: { cookie: `sb_session=${ashaSession._id}` },
+    });
+    assert.equal(dashRes.status, 200);
+    const dashBody = dashRes.json() as {
+      stats: { open: number };
+      activity: Array<{ day: string; conversations: number; messages: number }>;
+      recentConversations: Array<{ contact: string }>;
+      teamActivity: { activeAgents: number; handledToday: number };
+      recentEvents: Array<{ seq: number; type: string }>;
+    };
+    assert.equal(dashBody.stats.open, 1);
+    assert.equal(dashBody.activity.length, 7);
+    assert.equal(dashBody.recentConversations[0]?.contact, '+14155550101');
+    assert.ok(dashBody.recentEvents.length >= 1);
+
     const searchRes = await invokeApp(app, {
       method: 'GET',
       url: '/api/search?workspace=ws_acme&q=UI%20reply',
@@ -715,7 +733,9 @@ describe('Pigeon webhooks, inbox, outbox, auth, and WebSockets', () => {
     });
     assert.equal(threadRes.status, 200);
     const thread = threadRes.json() as {
+      conversation: { tags: string[] } | null;
       messages: Array<{ kind: string; text?: string; ciphertext?: string; iv?: string }>;
+      history: Array<{ seq: number; type: string }>;
     };
     assert.equal(thread.messages.length, 2);
     assert.equal(thread.messages[0].kind, 'outbound');
@@ -723,6 +743,16 @@ describe('Pigeon webhooks, inbox, outbox, auth, and WebSockets', () => {
     assert.equal(thread.messages[1].ciphertext, 'ZW5jcnlwdGVkX2J5dGVz');
     assert.equal(thread.messages[1].iv, 'cmFuZG9tX2l2XzEy');
     assert.equal(thread.messages[1].text, undefined);
+    assert.ok(thread.history.length >= 1);
+
+    const tagRes = await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/conversations/%2B14155550101/tags',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({ workspace: 'ws_acme', tags: ['Order', 'delivery', 'order'] }),
+    });
+    assert.equal(tagRes.status, 200);
+    assert.deepEqual((tagRes.json() as { tags: string[] }).tags, ['order', 'delivery']);
 
     // Outbox lease expiration failover: simulate dead worker holding expired lease
     await db

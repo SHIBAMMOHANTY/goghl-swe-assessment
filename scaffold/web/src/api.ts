@@ -15,8 +15,18 @@ export interface ConversationSummary {
   contact: string;
   assignee: string | null;
   status: 'open' | 'closed';
+  tags?: string[];
   lastActivityAt: string;
   lastMessagePreview: string;
+}
+
+export interface ConversationHistoryItem {
+  seq: number;
+  type: string;
+  status: string | null;
+  assignee: string | null;
+  conversationStatus: 'open' | 'closed' | null;
+  at: string;
 }
 
 export interface InboxStats {
@@ -25,6 +35,26 @@ export interface InboxStats {
   mine: number;
   unassigned: number;
   closed: number;
+}
+
+export interface DashboardResponse {
+  workspace: string;
+  stats: InboxStats;
+  activity: Array<{ day: string; conversations: number; messages: number }>;
+  recentConversations: ConversationSummary[];
+  teamActivity: {
+    activeAgents: number;
+    handledToday: number;
+    avgFirstResponseSec: number | null;
+  };
+  recentEvents: Array<{
+    seq: number;
+    type: string;
+    contact: string | null;
+    status: string | null;
+    assignee: string | null;
+    at: string;
+  }>;
 }
 
 export interface SearchResultItem {
@@ -104,6 +134,11 @@ export function fetchStats(workspace: string): Promise<InboxStats> {
   return requestJson(`/api/conversations/stats?${qs.toString()}`);
 }
 
+export function fetchDashboard(workspace: string): Promise<DashboardResponse> {
+  const qs = new URLSearchParams({ workspace });
+  return requestJson(`/api/dashboard?${qs.toString()}`);
+}
+
 export function searchMessages(
   workspace: string,
   q: string
@@ -115,11 +150,26 @@ export function searchMessages(
 export function fetchMessages(
   workspace: string,
   contact: string
-): Promise<{ conversation: ConversationSummary | null; messages: TimelineItem[] }> {
+): Promise<{
+  conversation: ConversationSummary | null;
+  messages: TimelineItem[];
+  history: ConversationHistoryItem[];
+}> {
   const qs = new URLSearchParams({ workspace });
   return requestJson(
     `/api/conversations/${encodeURIComponent(contact)}/messages?${qs.toString()}`
   );
+}
+
+export function updateConversationTags(
+  workspace: string,
+  contact: string,
+  tags: string[]
+): Promise<{ ok: boolean; tags: string[] }> {
+  return requestJson(`/api/conversations/${encodeURIComponent(contact)}/tags`, {
+    method: 'PATCH',
+    body: JSON.stringify({ workspace, tags }),
+  });
 }
 
 export function sendReply(

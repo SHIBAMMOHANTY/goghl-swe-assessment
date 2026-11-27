@@ -17,6 +17,7 @@ import {
   COLLECTIONS,
   ensureIndexes,
   type ConversationDoc,
+  type EventDoc,
   type InboundMessageDoc,
   type NoteDoc,
   type OutboundMessageDoc,
@@ -163,6 +164,7 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
           contact: c.contact,
           assignee: c.assignee,
           status: c.status,
+          tags: c.tags ?? [],
           lastActivityAt: c.lastActivityAt.toISOString(),
           lastMessagePreview: c.lastMessagePreview,
         })),
@@ -201,6 +203,153 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
       }
 
       res.status(200).json({ workspace: access.workspace, open, mine, unassigned, closed });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/dashboard', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const access = resolveWorkspaceAccess(req, res, req.query.workspace);
+      if (!access) return;
+
+      const db = await deps.getDb();
+      await ensureIndexes(db);
+
+      const now = new Date();
+      const startOfToday = new Date(now);
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+
+      const [conversations, inbound, outbound, recentEvents] = await Promise.all([
+        db
+          .collection<ConversationDoc>(COLLECTIONS.conversations)
+          .find({ workspace: access.workspace })
+          .sort({ lastActivityAt: -1, contact: 1 })
+          .toArray(),
+        db
+          .collection<InboundMessageDoc>(COLLECTIONS.inboundMessages)
+          .find({ workspace: access.workspace, occurredAt: { $gte: sevenDaysAgo } })
+          .toArray(),
+        db
+          .collection<OutboundMessageDoc>(COLLECTIONS.outboundMessages)
+          .find({ workspace: access.workspace, createdAt: { $gte: sevenDaysAgo } })
+          .toArray(),
+        db
+          .collection<EventDoc>(COLLECTIONS.events)
+          .find({ workspace: access.workspace })
+          .sort({ seq: -1 })
+          .limit(10)
+          .toArray(),
+      ]);
+
+      let open = 0;
+      let mine = 0;
+      let unassigned = 0;
+      let closed = 0;
+      const activeAgentSet = new Set<string>();
+      let handledToday = 0;
+
+      for (const c of conversations) {
+        if (c.status === 'closed') {
+          closed++;
+        } else {
+          open++;
+          if (c.assignee === req.session!.sub) mine++;
+          if (c.assignee === null) unassigned++;
+        }
+        if (c.assignee) activeAgentSet.add(c.assignee);
+        if (c.updatedAt >= startOfToday) handledToday++;
+      }
+
+      // Build 7-day activity buckets
+      const dayBuckets = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(sevenDaysAgo);
+        d.setDate(sevenDaysAgo.getDate() + i);
+        const key = d.toISOString().slice(0, 10);
+        const label = d.toLocaleDateString('en-US', { weekday: 'short' });
+        return { key, day: label, contacts: new Set<string>(), messages: 0 };
+      });
+      const bucketMap = new Map(dayBuckets.map((b) => [b.key, b]));
+
+      for (const m of inbound) {
+        const key = m.occurredAt.toISOString().slice(0, 10);
+        const bucket = bucketMap.get(key);
+        if (bucket) {
+          bucket.messages++;
+          bucket.contacts.add(m.contact);
+        }
+      }
+      for (const m of outbound) {
+        const key = m.createdAt.toISOString().slice(0, 10);
+        const bucket = bucketMap.get(key);
+        if (bucket) {
+          bucket.messages++;
+          bucket.contacts.add(m.contact);
+        }
+        if (m.agent) activeAgentSet.add(m.agent);
+      }
+
+      // Estimate average response latency (from first inbound to first outbound per contact)
+      const firstInboundByContact = new Map<string, number>();
+      for (const m of inbound) {
+        const t = m.occurredAt.getTime();
+        const prev = firstInboundByContact.get(m.contact);
+        if (prev === undefined || t < prev) firstInboundByContact.set(m.contact, t);
+      }
+      const firstOutboundByContact = new Map<string, number>();
+      for (const m of outbound) {
+        const t = m.createdAt.getTime();
+        const prev = firstOutboundByContact.get(m.contact);
+        if (prev === undefined || t < prev) firstOutboundByContact.set(m.contact, t);
+      }
+      const responseDeltasSec: number[] = [];
+      for (const [contact, outMs] of firstOutboundByContact) {
+        const inMs = firstInboundByContact.get(contact);
+        if (inMs !== undefined && outMs >= inMs) {
+          responseDeltasSec.push(Math.round((outMs - inMs) / 1000));
+        }
+      }
+      const avgFirstResponseSec =
+        responseDeltasSec.length > 0
+          ? Math.round(
+              responseDeltasSec.reduce((a, b) => a + b, 0) / responseDeltasSec.length
+            )
+          : null;
+
+      res.status(200).json({
+        workspace: access.workspace,
+        stats: { open, mine, unassigned, closed },
+        activity: dayBuckets.map((b) => ({
+          day: b.day,
+          conversations: b.contacts.size,
+          messages: b.messages,
+        })),
+        recentConversations: conversations.slice(0, 5).map((c) => ({
+          workspace: c.workspace,
+          contact: c.contact,
+          assignee: c.assignee,
+          status: c.status,
+          lastActivityAt: c.lastActivityAt.toISOString(),
+          lastMessagePreview: c.lastMessagePreview,
+        })),
+        teamActivity: {
+          activeAgents: activeAgentSet.size,
+          handledToday,
+          avgFirstResponseSec,
+        },
+        recentEvents: recentEvents.map((e) => ({
+          seq: e.seq,
+          type: e.type,
+          contact: e.contact ?? null,
+          status: e.status ?? null,
+          assignee: e.assignee ?? null,
+          at: e.createdAt.toISOString(),
+        })),
+      });
     } catch (err) {
       next(err);
     }
@@ -286,7 +435,7 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
       const db = await deps.getDb();
       await ensureIndexes(db);
 
-      const [conversation, inbound, outbound, notes] = await Promise.all([
+      const [conversation, inbound, outbound, notes, historyEvents] = await Promise.all([
         db
           .collection<ConversationDoc>(COLLECTIONS.conversations)
           .findOne({ workspace: access.workspace, contact }),
@@ -304,6 +453,12 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
           .collection<NoteDoc>(COLLECTIONS.notes)
           .find({ workspace: access.workspace, contact })
           .sort({ createdAt: 1 })
+          .toArray(),
+        db
+          .collection<EventDoc>(COLLECTIONS.events)
+          .find({ workspace: access.workspace, contact })
+          .sort({ seq: -1 })
+          .limit(30)
           .toArray(),
       ]);
 
@@ -346,11 +501,59 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
               contact: conversation.contact,
               assignee: conversation.assignee,
               status: conversation.status,
+              tags: conversation.tags ?? [],
               lastActivityAt: conversation.lastActivityAt.toISOString(),
             }
           : null,
         messages: timeline.map(({ sortMs: _s, ...item }) => item),
+        history: historyEvents.map((e) => ({
+          seq: e.seq,
+          type: e.type,
+          status: e.status ?? null,
+          assignee: e.assignee ?? null,
+          conversationStatus: e.conversation_status ?? null,
+          at: e.createdAt.toISOString(),
+        })),
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.patch('/conversations/:contact/tags', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const workspace =
+        (typeof req.body?.workspace === 'string' && req.body.workspace) || req.query.workspace;
+      const access = resolveWorkspaceAccess(req, res, workspace);
+      if (!access) return;
+
+      const contact = decodeURIComponent(req.params.contact);
+      const rawTags = Array.isArray(req.body?.tags) ? (req.body.tags as unknown[]) : [];
+      const tags = Array.from(
+        new Set(
+          rawTags
+            .filter((t): t is string => typeof t === 'string')
+            .map((t) => t.trim().toLowerCase())
+            .filter((t) => t.length > 0 && t.length <= 32)
+        )
+      ).slice(0, 12);
+
+      const db = await deps.getDb();
+      await ensureIndexes(db);
+      const updated = await db
+        .collection<ConversationDoc>(COLLECTIONS.conversations)
+        .findOneAndUpdate(
+          { workspace: access.workspace, contact },
+          { $set: { tags, updatedAt: new Date() } },
+          { returnDocument: 'after' }
+        );
+
+      if (!updated) {
+        res.status(404).json({ error: 'Conversation not found' });
+        return;
+      }
+
+      res.status(200).json({ ok: true, tags: updated.tags ?? [] });
     } catch (err) {
       next(err);
     }
