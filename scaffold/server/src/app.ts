@@ -1,4 +1,5 @@
 import express, { type ErrorRequestHandler, type Express } from 'express';
+import { config } from './config.js';
 import { createApiRouter, type ApiRouterDeps } from './routes/api.js';
 import { createAuthRouter, type AuthRouterDeps } from './routes/auth.js';
 import { createGraderRouter, type GraderDeps } from './routes/grader.js';
@@ -26,6 +27,14 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 
 export function createApp(deps: AppDeps = {}): Express {
   const app = express();
+
+  app.get('/', (req, res) => {
+    if (typeof req.headers.accept === 'string' && req.headers.accept.includes('text/html')) {
+      res.redirect(302, `${config.webOrigin.replace(/\/$/, '')}/`);
+      return;
+    }
+    res.status(200).json({ service: 'switchboard-server', webOrigin: config.webOrigin });
+  });
 
   app.get('/healthz', async (_req, res) => {
     if (!deps.healthCheck) {

@@ -421,10 +421,87 @@ describe('Pigeon webhooks, inbox, outbox, auth, and WebSockets', () => {
       email: 'ben@acme.test',
       workspaces: [{ id: 'ws_acme', role: 'agent' }],
     });
+    let capturedNonce = '';
+    const mockAuthFetch: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.endsWith('/.well-known/openid-configuration')) {
+        return new Response(
+          JSON.stringify({
+            issuer: 'http://localhost:4020',
+            authorization_endpoint: 'http://localhost:4020/authorize',
+            token_endpoint: 'http://localhost:4020/token',
+            jwks_uri: 'http://localhost:4020/jwks',
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith('/jwks')) {
+        return new Response(JSON.stringify({ keys: [jwk] }), { status: 200 });
+      }
+      if (url.endsWith('/token')) {
+        const params = new URLSearchParams(String(init?.body ?? ''));
+        assert.ok(params.get('code_verifier'));
+        const idBody = Buffer.from(
+          JSON.stringify({
+            iss: 'http://localhost:4020',
+            aud: 'switchboard-web',
+            sub: 'u_asha',
+            name: 'Asha Rao',
+            email: 'asha@acme.test',
+            nonce: capturedNonce,
+            iat: now,
+            exp: now + 3600,
+            workspaces: [{ id: 'ws_acme', role: 'admin' }],
+          })
+        ).toString('base64url');
+        const idSig = cryptoSign('RSA-SHA256', Buffer.from(`${head}.${idBody}`), privateKey).toString(
+          'base64url'
+        );
+        return new Response(
+          JSON.stringify({ access_token: 'at_1', token_type: 'Bearer', id_token: `${head}.${idBody}.${idSig}` }),
+          { status: 200 }
+        );
+      }
+      throw new Error(`Unexpected auth fetch URL: ${url}`);
+    };
+
     const app = createApp({
+      auth: { getDb: async () => db, fetchImpl: mockAuthFetch },
       api: { getDb: async () => db, getRedis: () => redis },
       webhooks: { getDb: async () => db, getRedis: () => redis },
     });
+
+    // OIDC /auth/login -> /auth/callback redirects to frontend web app & handles stale browser state
+    const loginStart = await invokeApp(app, {
+      method: 'GET',
+      url: '/auth/login?next=http%3A%2F%2Flocalhost%3A5173%2F',
+    });
+    assert.equal(loginStart.status, 302);
+    const idpUrl = new URL(String(loginStart.headers.location));
+    const loginState = idpUrl.searchParams.get('state')!;
+    capturedNonce = idpUrl.searchParams.get('nonce')!;
+
+    const cbSuccess = await invokeApp(app, {
+      method: 'GET',
+      url: `/auth/callback?code=c_123&state=${encodeURIComponent(loginState)}`,
+    });
+    assert.equal(cbSuccess.status, 302);
+    assert.equal(cbSuccess.headers.location, 'http://localhost:5173/');
+
+    const staleApiCb = await invokeApp(app, {
+      method: 'GET',
+      url: '/auth/callback?code=c_old&state=stale_state',
+      headers: { accept: '*/*' },
+    });
+    assert.equal(staleApiCb.status, 400);
+
+    const staleBrowserCb = await invokeApp(app, {
+      method: 'GET',
+      url: '/auth/callback?code=c_old&state=stale_state',
+      headers: { accept: 'text/html,application/xhtml+xml' },
+    });
+    assert.equal(staleBrowserCb.status, 302);
+    assert.equal(staleBrowserCb.headers.location, '/auth/login');
 
     assert.equal((await invokeApp(app, { method: 'GET', url: '/api/me' })).status, 401);
     const meRes = await invokeApp(app, {

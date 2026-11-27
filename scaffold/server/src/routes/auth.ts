@@ -8,7 +8,9 @@ import {
   createSession,
   deleteSession,
   getOidcDiscovery,
+  getSessionFromRequest,
   resolveRedirectUri,
+  resolveReturnTo,
   SESSION_COOKIE_NAME,
   verifyIdToken,
 } from '../services/auth.js';
@@ -20,12 +22,14 @@ export interface AuthRouterDeps {
 
 export function createAuthRouter(deps: AuthRouterDeps = { getDb }): Router {
   const router = Router();
+  const defaultWebUrl = `${config.webOrigin.replace(/\/$/, '')}/`;
 
   router.get('/login', async (req, res, next) => {
     try {
       const db = await deps.getDb();
       const discovery = await getOidcDiscovery(config.oidc.issuer, deps.fetchImpl);
-      const { state, nonce, codeChallenge } = await createOAuthState(db);
+      const returnTo = resolveReturnTo(req);
+      const { state, nonce, codeChallenge } = await createOAuthState(db, returnTo);
       const redirectUri = resolveRedirectUri(req);
 
       const authUrl = new URL(discovery.authorization_endpoint);
@@ -48,8 +52,14 @@ export function createAuthRouter(deps: AuthRouterDeps = { getDb }): Router {
     try {
       const code = typeof req.query.code === 'string' ? req.query.code : '';
       const state = typeof req.query.state === 'string' ? req.query.state : '';
+      const isBrowserNav =
+        typeof req.headers.accept === 'string' && req.headers.accept.includes('text/html');
 
       if (!code || !state) {
+        if (isBrowserNav) {
+          res.redirect(302, '/auth/login');
+          return;
+        }
         res.status(400).json({ error: 'Missing code or state' });
         return;
       }
@@ -57,6 +67,16 @@ export function createAuthRouter(deps: AuthRouterDeps = { getDb }): Router {
       const db = await deps.getDb();
       const oauthState = await consumeOAuthState(db, state);
       if (!oauthState) {
+        // Always try to recover gracefully for browser sessions
+        const existing = await getSessionFromRequest(db, req);
+        if (existing) {
+          res.redirect(302, defaultWebUrl);
+          return;
+        }
+        if (isBrowserNav) {
+          res.redirect(302, '/auth/login');
+          return;
+        }
         res.status(400).json({ error: 'Invalid or expired OAuth state' });
         return;
       }
@@ -80,6 +100,10 @@ export function createAuthRouter(deps: AuthRouterDeps = { getDb }): Router {
       });
 
       if (!tokenRes.ok) {
+        if (isBrowserNav) {
+          res.redirect(302, '/auth/login');
+          return;
+        }
         res.status(401).json({ error: 'OIDC token exchange failed' });
         return;
       }
@@ -112,7 +136,7 @@ export function createAuthRouter(deps: AuthRouterDeps = { getDb }): Router {
         maxAge: 24 * 60 * 60 * 1000,
       });
 
-      res.redirect(302, '/');
+      res.redirect(302, oauthState.returnTo || defaultWebUrl);
     } catch (err) {
       next(err);
     }

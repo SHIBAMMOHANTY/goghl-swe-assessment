@@ -53,12 +53,27 @@ process.on('SIGTERM', () => {
   void shutdown('SIGTERM');
 });
 
-server.listen(config.port, () => {
-  console.log(`server on http://localhost:${config.port}`);
-  outbox.start();
-  void checkReadiness().then((status) => {
-    if (!status.ok) {
-      console.warn('Startup readiness check degraded:', status);
+function listenWithRetry(port: number, retries = 5, delayMs = 1000): void {
+  server.listen(port, () => {
+    console.log(`server on http://localhost:${port}`);
+    outbox.start();
+    void checkReadiness().then((status) => {
+      if (!status.ok) {
+        console.warn('Startup readiness check degraded:', status);
+      }
+    });
+  });
+
+  server.once('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE' && retries > 0) {
+      console.warn(`Port ${port} in use, retrying in ${delayMs}ms (${retries} retries left)...`);
+      server.removeAllListeners('error');
+      setTimeout(() => listenWithRetry(port, retries - 1, delayMs), delayMs);
+    } else {
+      console.error('Server listen error:', err);
+      process.exit(1);
     }
   });
-});
+}
+
+listenWithRetry(config.port);

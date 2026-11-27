@@ -231,7 +231,11 @@ export function LoginScreen({ error }: LoginScreenProps) {
           )}
 
           <a
-            href="/auth/login"
+            href={
+              typeof window !== 'undefined'
+                ? `/auth/login?next=${encodeURIComponent(`${window.location.origin}/`)}`
+                : '/auth/login'
+            }
             className="w-full inline-flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#5826d9] to-[#6b34ea] hover:from-[#4c1ec4] hover:to-[#5b28d6] active:scale-[0.99] text-white text-sm font-semibold py-3.5 px-4 shadow-lg shadow-indigo-600/25 transition-all no-underline"
           >
             <svg
