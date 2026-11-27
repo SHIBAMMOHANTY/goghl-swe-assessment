@@ -6,12 +6,81 @@ import { formatRelativeTime, workspaceDisplayName } from './workspaceMeta';
 interface AppHeaderProps {
   me: MeResponse;
   workspace: string;
+  activeScreen: ActiveScreen;
   onWorkspaceChange: (ws: string) => void;
   wsConnected: boolean;
   recentEvents: DashboardResponse['recentEvents'];
   onOpenMobileNav: () => void;
   onNavigate: (screen: ActiveScreen) => void;
   onLogout: () => void;
+}
+
+function getHeaderMeta(
+  screen: ActiveScreen,
+  workspaceName: string
+): { title: string; subtitle: string } {
+  switch (screen) {
+    case 'dashboard':
+      return {
+        title: 'Dashboard',
+        subtitle: `Overview and real-time activity in ${workspaceName}.`,
+      };
+    case 'inbox':
+      return {
+        title: 'Inbox',
+        subtitle: `Shared conversations and customer replies in ${workspaceName}.`,
+      };
+    case 'contacts':
+      return {
+        title: 'Contacts',
+        subtitle: 'Manage your customers and view their conversation history.',
+      };
+    case 'search':
+      return {
+        title: 'Global Search',
+        subtitle: `Search across conversations, contacts, messages, and notes in ${workspaceName}.`,
+      };
+    case 'assignments':
+      return {
+        title: 'Team Management',
+        subtitle: 'Manage your team, agents, roles, and permissions.',
+      };
+    case 'reports':
+      return {
+        title: 'Reports & Analytics',
+        subtitle: `Track conversations, agent performance, and response times in ${workspaceName}.`,
+      };
+    case 'integrations':
+      return {
+        title: 'Integrations',
+        subtitle: `API keys, webhooks, and connected channels in ${workspaceName}.`,
+      };
+    case 'settings':
+      return {
+        title: 'Workspace Settings',
+        subtitle: 'Manage your workspace, team, channels, notifications, security, and integrations.',
+      };
+    case 'notifications':
+      return {
+        title: 'Notifications',
+        subtitle: `Real-time alerts and activity for ${workspaceName}.`,
+      };
+    case 'billing':
+      return {
+        title: 'Billing',
+        subtitle: `Manage your subscription, plan, seats, and payment history in ${workspaceName}.`,
+      };
+    case 'profile':
+      return {
+        title: 'User Profile',
+        subtitle: 'View and update your profile details and workspace role.',
+      };
+    case 'account':
+      return {
+        title: 'Account Settings',
+        subtitle: 'Manage your personal account, security, notifications, and display preferences.',
+      };
+  }
 }
 
 function StoreIcon({ className = 'w-4 h-4' }: { className?: string }) {
@@ -32,6 +101,7 @@ function userInitials(name: string): string {
 export function AppHeader({
   me,
   workspace,
+  activeScreen,
   onWorkspaceChange,
   wsConnected,
   recentEvents,
@@ -59,22 +129,36 @@ export function AppHeader({
   }, []);
 
   const currentRole = me.workspaces.find((w) => w.id === workspace)?.role ?? 'agent';
+  const headerMeta = getHeaderMeta(activeScreen, workspaceDisplayName(workspace));
 
   return (
-    <header className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 bg-white border-b border-slate-200/80">
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <header className="relative z-30 flex items-center justify-between gap-3 px-3 sm:px-6 py-2.5 bg-white border-b border-slate-200/80">
+      <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
         {/* Mobile sidebar drawer trigger */}
         <button
           type="button"
           onClick={onOpenMobileNav}
           aria-label="Open navigation menu"
-          className="lg:hidden rounded-lg border border-slate-200 bg-white p-1.5 text-slate-700 hover:bg-slate-50 cursor-pointer"
+          className="lg:hidden rounded-lg border border-slate-200 bg-white p-1.5 text-slate-700 hover:bg-slate-50 shrink-0 cursor-pointer"
         >
           <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth="2">
             <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
           </svg>
         </button>
 
+        {/* Global Page Title & Subtitle */}
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate m-0 leading-tight">
+            {headerMeta.title}
+          </h1>
+          <p className="hidden md:block text-xs text-slate-500 truncate mt-0.5 mb-0">
+            {headerMeta.subtitle}
+          </p>
+        </div>
+      </div>
+
+      {/* Right Workspace Selector, Real-time Status, Notifications, User Profile */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         {/* Workspace Selector Dropdown (Screen 6) */}
         <div className="relative" ref={wsRef}>
           <button
@@ -86,18 +170,18 @@ export function AppHeader({
               setNotifOpen(false);
               setUserOpen(false);
             }}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 transition-colors cursor-pointer"
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white px-2 sm:px-2.5 py-1.5 text-xs font-semibold text-slate-800 transition-colors cursor-pointer"
           >
-            <span className="w-6 h-6 rounded-lg bg-violet-100 text-[#602ee0] grid place-items-center shrink-0">
+            <span className="w-5 h-5 rounded-md bg-violet-100 text-[#602ee0] grid place-items-center shrink-0">
               <StoreIcon className="w-3.5 h-3.5" />
             </span>
-            <span className="truncate max-w-[120px] sm:max-w-[180px]">
+            <span className="hidden sm:inline truncate max-w-[140px]">
               {workspaceDisplayName(workspace)}
             </span>
             <svg
               viewBox="0 0 24 24"
               fill="none"
-              className="w-4 h-4 text-slate-400 shrink-0"
+              className="w-3.5 h-3.5 text-slate-400 shrink-0"
               stroke="currentColor"
               strokeWidth="2"
             >
@@ -106,7 +190,7 @@ export function AppHeader({
           </button>
 
           {wsOpen && (
-            <div className="absolute left-0 mt-2 w-64 rounded-2xl bg-white border border-slate-200/90 shadow-xl shadow-indigo-950/10 py-2 z-40">
+            <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-slate-200/90 shadow-xl shadow-indigo-950/10 py-2 z-40">
               <div className="px-3.5 py-1.5 text-[11px] font-semibold text-slate-500">
                 Switch Workspace
               </div>
@@ -165,10 +249,6 @@ export function AppHeader({
             </div>
           )}
         </div>
-      </div>
-
-      {/* Right Status, Notifications, User Profile */}
-      <div className="flex items-center gap-2 sm:gap-3.5 shrink-0">
         <span
           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] sm:text-xs font-semibold ${
             wsConnected

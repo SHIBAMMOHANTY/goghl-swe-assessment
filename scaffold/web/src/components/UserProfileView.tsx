@@ -51,8 +51,7 @@ export function UserProfileView({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto bg-[#f6f7fc] p-4 sm:p-6 pb-16 lg:pb-6">
       <div className="max-w-2xl mx-auto space-y-5">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 m-0">User Profile</h1>
+        <div className="flex items-center justify-end">
           <button
             type="button"
             onClick={onOpenAccountSettings}

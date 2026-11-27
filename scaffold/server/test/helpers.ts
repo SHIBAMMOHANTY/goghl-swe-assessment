@@ -137,6 +137,9 @@ export function createInMemoryMongo() {
           const hit = getRows(name).find((d) => matchesFilter(d, filter));
           return hit ? clone(hit) : null;
         },
+        async countDocuments(filter: Record<string, unknown> = {}) {
+          return getRows(name).filter((d) => matchesFilter(d, filter)).length;
+        },
         find(filter: Record<string, unknown>) {
           let results = getRows(name)
             .filter((d) => matchesFilter(d, filter))

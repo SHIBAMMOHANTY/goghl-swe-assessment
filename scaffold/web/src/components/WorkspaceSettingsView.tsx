@@ -258,16 +258,6 @@ export function WorkspaceSettingsView({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto bg-[#f6f7fc] p-4 sm:p-6 pb-16 lg:pb-6">
       <div className="max-w-6xl mx-auto space-y-5">
-        {/* Top Title */}
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight m-0">
-            Workspace Settings
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 mb-0">
-            Manage your workspace, team, channels, notifications, security, and integrations.
-          </p>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-[270px_1fr] gap-5 items-start">
           {/* Left Settings Navigation (List first on mobile) */}
           <nav

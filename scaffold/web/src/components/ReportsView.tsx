@@ -429,15 +429,30 @@ export function ReportsView({ workspace }: ReportsViewProps) {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto bg-[#f6f7fc] p-4 sm:p-6 pb-16 lg:pb-6 space-y-5">
-      {/* Header + Date Range Filter + Export */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight m-0">
-            Reports &amp; Analytics
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 mb-0">
-            Track conversations, agent performance, and response times in <strong>{workspace}</strong>.
-          </p>
+      {/* Section Tabs + Date Range Filter + Export */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
+        <div className="flex items-center gap-5 overflow-x-auto">
+          {(
+            [
+              ['overview', 'Overview'],
+              ['agents', 'Agent Performance'],
+              ['conversations', 'Conversation Reports'],
+              ['response', 'Response Time'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={`pb-2 text-xs sm:text-[13px] font-semibold border-b-2 whitespace-nowrap cursor-pointer ${
+                tab === id
+                  ? 'border-[#602ee0] text-[#602ee0]'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-2">
@@ -445,7 +460,7 @@ export function ReportsView({ workspace }: ReportsViewProps) {
             aria-label="Date range"
             value={days}
             onChange={(e) => setDays(Number(e.target.value) as 7 | 14 | 30)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
           >
             <option value={7}>Last 7 Days</option>
             <option value={14}>Last 14 Days</option>
@@ -456,36 +471,11 @@ export function ReportsView({ workspace }: ReportsViewProps) {
             type="button"
             disabled={!report}
             onClick={() => report && exportCsv(report)}
-            className="rounded-xl bg-gradient-to-r from-[#6532eb] to-[#5624d6] hover:from-[#5726d8] hover:to-[#471bb8] disabled:opacity-50 text-white text-xs font-semibold px-4 py-2 shadow-sm cursor-pointer"
+            className="rounded-xl bg-gradient-to-r from-[#6532eb] to-[#5624d6] hover:from-[#5726d8] hover:to-[#471bb8] disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-1.5 shadow-sm cursor-pointer"
           >
             &darr; Export CSV
           </button>
         </div>
-      </div>
-
-      {/* Section Tabs */}
-      <div className="flex items-center gap-5 border-b border-slate-200 overflow-x-auto">
-        {(
-          [
-            ['overview', 'Overview'],
-            ['agents', 'Agent Performance'],
-            ['conversations', 'Conversation Reports'],
-            ['response', 'Response Time'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={`pb-2.5 text-xs sm:text-[13px] font-semibold border-b-2 whitespace-nowrap cursor-pointer ${
-              tab === id
-                ? 'border-[#602ee0] text-[#602ee0]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
       </div>
 
       {err && (

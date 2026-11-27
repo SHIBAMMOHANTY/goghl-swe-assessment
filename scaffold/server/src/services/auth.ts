@@ -18,7 +18,7 @@ import {
 
 export const SESSION_COOKIE_NAME = 'sb_session';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+const OAUTH_STATE_TTL_MS = 30 * 60 * 1000;
 
 export interface OidcDiscovery {
   issuer: string;
@@ -166,7 +166,10 @@ export function createPkcePair(): { verifier: string; challenge: string } {
   return { verifier, challenge };
 }
 
-export async function createOAuthState(db: Db): Promise<{
+export async function createOAuthState(
+  db: Db,
+  returnTo?: string
+): Promise<{
   state: string;
   nonce: string;
   codeVerifier: string;
@@ -181,6 +184,7 @@ export async function createOAuthState(db: Db): Promise<{
     _id: state,
     nonce,
     codeVerifier: verifier,
+    ...(returnTo ? { returnTo } : {}),
     createdAt: now,
     expiresAt: new Date(now.getTime() + OAUTH_STATE_TTL_MS),
   });
@@ -266,6 +270,40 @@ export function resolveRedirectUri(req: Request): string {
     return `${proto}://${host}/auth/callback`;
   }
   return config.oidc.redirectUri;
+}
+
+export function isSafeLocalReturnUrl(candidate: string): string | null {
+  try {
+    const u = new URL(candidate);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
+      return u.toString();
+    }
+    const configured = new URL(config.webOrigin);
+    if (u.origin === configured.origin) {
+      return u.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function resolveReturnTo(req: Request): string {
+  const nextRaw: unknown = req.query.next;
+  if (typeof nextRaw === 'string' && nextRaw.trim()) {
+    const safe = isSafeLocalReturnUrl(nextRaw.trim());
+    if (safe) return safe;
+  }
+  const ref = req.get('referer') || req.get('origin');
+  if (ref) {
+    const safe = isSafeLocalReturnUrl(ref);
+    if (safe) {
+      const u = new URL(safe);
+      return `${u.origin}/`;
+    }
+  }
+  return `${config.webOrigin.replace(/\/$/, '')}/`;
 }
 
 export function getWorkspaceRole(

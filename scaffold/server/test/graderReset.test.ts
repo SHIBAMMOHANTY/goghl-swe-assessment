@@ -281,4 +281,20 @@ describe('POST /__grader/reset', () => {
     });
     assert.equal(okRes.status, 200);
   });
+
+  it('reports /healthz 200 when dependencies are ready and 503 when unavailable', async () => {
+    const readyApp = createApp({
+      healthCheck: async () => ({ ok: true, mongo: true, redis: true }),
+    });
+    const okRes = await invokeApp(readyApp, { method: 'GET', url: '/healthz' });
+    assert.equal(okRes.status, 200);
+    assert.deepEqual(okRes.json(), { ok: true, mongo: true, redis: true });
+
+    const degradedApp = createApp({
+      healthCheck: async () => ({ ok: false, mongo: false, redis: true }),
+    });
+    const badRes = await invokeApp(degradedApp, { method: 'GET', url: '/healthz' });
+    assert.equal(badRes.status, 503);
+    assert.deepEqual(badRes.json(), { ok: false, mongo: false, redis: true });
+  });
 });

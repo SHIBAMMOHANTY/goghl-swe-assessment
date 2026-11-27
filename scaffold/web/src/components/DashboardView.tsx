@@ -132,9 +132,9 @@ export function DashboardView({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex-1 min-w-0 space-y-4">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight m-0">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight m-0">
                 Welcome back, {firstName}!
-              </h1>
+              </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 mb-0">
                 Here&apos;s what&apos;s happening in {workspaceDisplayName(workspace)} today.
               </p>

@@ -49,13 +49,6 @@ export function AccountSettingsView({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto bg-[#f6f7fc] p-4 sm:p-6 pb-16 lg:pb-6">
       <div className="max-w-4xl mx-auto space-y-5">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 m-0">Account Settings</h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 mb-0">
-            Manage your personal account, security, notifications, and display preferences.
-          </p>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-[210px_1fr] gap-5 items-start">
           {/* Compact Left Menu */}
           <nav className="bg-white rounded-2xl border border-slate-200/80 p-2 shadow-2xs flex md:flex-col gap-1 overflow-x-auto">

@@ -161,6 +161,37 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
     }
   });
 
+  router.get('/workspaces', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const s = req.session!;
+      const db = await deps.getDb();
+      const wsIds = s.workspaces.map((w) => w.id);
+      const settingsDocs =
+        wsIds.length > 0
+          ? await db
+              .collection<WorkspaceSettingsDoc>(COLLECTIONS.workspaceSettings)
+              .find({ _id: { $in: wsIds } })
+              .toArray()
+          : [];
+      const settingsById = new Map(settingsDocs.map((doc) => [doc._id, doc]));
+
+      res.status(200).json({
+        workspaces: s.workspaces.map((w) => {
+          const settings = settingsById.get(w.id);
+          return {
+            id: w.id,
+            role: w.role,
+            name: settings?.name || w.id,
+            slug: settings?.slug || w.id,
+            timezone: settings?.timezone || '(UTC+00:00) UTC',
+          };
+        }),
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   function resolveWorkspaceAccess(
     req: AuthenticatedRequest,
     res: Response,
@@ -692,6 +723,48 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
     }
   });
 
+  router.get('/conversations/:contact', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const access = resolveWorkspaceAccess(req, res, req.query.workspace);
+      if (!access) return;
+
+      const contact = decodeURIComponent(req.params.contact);
+      const db = await deps.getDb();
+      await ensureIndexes(db);
+
+      const [conversation, profile] = await Promise.all([
+        db
+          .collection<ConversationDoc>(COLLECTIONS.conversations)
+          .findOne({ workspace: access.workspace, contact }),
+        db
+          .collection<ContactDoc>(COLLECTIONS.contacts)
+          .findOne({ workspace: access.workspace, contact }),
+      ]);
+
+      if (!conversation) {
+        res.status(404).json({ error: 'Conversation not found' });
+        return;
+      }
+
+      res.status(200).json({
+        workspace: access.workspace,
+        conversation: {
+          workspace: conversation.workspace,
+          contact: conversation.contact,
+          assignee: conversation.assignee,
+          status: conversation.status,
+          tags: Array.from(new Set([...(profile?.tags ?? []), ...(conversation.tags ?? [])])),
+          lastActivityAt: conversation.lastActivityAt.toISOString(),
+          lastMessagePreview: conversation.lastMessagePreview,
+          contactName: profile?.name || conversation.contact,
+          contactEmail: profile?.email || '',
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.patch('/conversations/:contact/tags', async (req: AuthenticatedRequest, res, next) => {
     try {
       const workspace =
@@ -1102,6 +1175,62 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
         total,
         totalPages,
         contacts: items,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/contacts/:contact', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const access = resolveWorkspaceAccess(req, res, req.query.workspace);
+      if (!access) return;
+
+      const contact = decodeURIComponent(req.params.contact);
+      const db = await deps.getDb();
+      await ensureIndexes(db);
+
+      const [profile, conversation, inboundCount, outboundCount] = await Promise.all([
+        db
+          .collection<ContactDoc>(COLLECTIONS.contacts)
+          .findOne({ workspace: access.workspace, contact }),
+        db
+          .collection<ConversationDoc>(COLLECTIONS.conversations)
+          .findOne({ workspace: access.workspace, contact }),
+        db
+          .collection<InboundMessageDoc>(COLLECTIONS.inboundMessages)
+          .countDocuments({ workspace: access.workspace, contact }),
+        db
+          .collection<OutboundMessageDoc>(COLLECTIONS.outboundMessages)
+          .countDocuments({ workspace: access.workspace, contact }),
+      ]);
+
+      if (!profile && !conversation) {
+        res.status(404).json({ error: 'Contact not found' });
+        return;
+      }
+
+      const tags = Array.from(new Set([...(profile?.tags ?? []), ...(conversation?.tags ?? [])]));
+      const lastActivityAt =
+        conversation?.lastActivityAt ?? profile?.updatedAt ?? profile?.createdAt ?? new Date(0);
+
+      res.status(200).json({
+        workspace: access.workspace,
+        contact: {
+          workspace: access.workspace,
+          contact,
+          name: profile?.name || contact,
+          email: profile?.email || '',
+          location: profile?.location || '',
+          type: profile?.type ?? ('customer' as const),
+          tags,
+          assignee: conversation?.assignee ?? null,
+          conversationStatus: conversation?.status ?? null,
+          lastMessagePreview: conversation?.lastMessagePreview ?? '',
+          messageCount: inboundCount + outboundCount,
+          createdAt: (profile?.createdAt ?? conversation?.createdAt ?? new Date()).toISOString(),
+          lastActivityAt: lastActivityAt.toISOString(),
+        },
       });
     } catch (err) {
       next(err);
@@ -1949,6 +2078,70 @@ export function createApiRouter(deps: ApiRouterDeps = { getDb, getRedis }): Rout
         res.status(err.status).json({ error: err.message });
         return;
       }
+      next(err);
+    }
+  });
+
+  router.patch('/conversations/:contact/status', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const workspace =
+        (typeof req.body?.workspace === 'string' && req.body.workspace) || req.query.workspace;
+      const access = resolveWorkspaceAccess(req, res, workspace);
+      if (!access) return;
+
+      const rawStatus: unknown = req.body?.status;
+      if (rawStatus !== 'open' && rawStatus !== 'closed') {
+        res.status(400).json({ error: "status must be 'open' or 'closed'" });
+        return;
+      }
+
+      const contact = decodeURIComponent(req.params.contact);
+      const db = await deps.getDb();
+      const redis = deps.getRedis();
+      const updated = await setConversationStatus(db, redis, {
+        workspace: access.workspace,
+        contact,
+        status: rawStatus,
+      });
+      res.status(200).json({ ok: true, status: updated.status });
+    } catch (err) {
+      if (err instanceof HttpError) {
+        res.status(err.status).json({ error: err.message });
+        return;
+      }
+      next(err);
+    }
+  });
+
+  router.get('/conversations/:contact/notes', async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const access = resolveWorkspaceAccess(req, res, req.query.workspace);
+      if (!access) return;
+
+      const contact = decodeURIComponent(req.params.contact);
+      const db = await deps.getDb();
+      await ensureIndexes(db);
+
+      const notes = await db
+        .collection<NoteDoc>(COLLECTIONS.notes)
+        .find({ workspace: access.workspace, contact })
+        .sort({ createdAt: 1, _id: 1 })
+        .toArray();
+
+      res.status(200).json({
+        workspace: access.workspace,
+        notes: notes.map((n) => ({
+          kind: 'note' as const,
+          ciphertext: n.ciphertext,
+          iv: n.iv,
+          alg: n.alg,
+          keyId: n.keyId,
+          authorSub: n.authorSub,
+          authorName: n.authorName,
+          at: n.createdAt.toISOString(),
+        })),
+      });
+    } catch (err) {
       next(err);
     }
   });

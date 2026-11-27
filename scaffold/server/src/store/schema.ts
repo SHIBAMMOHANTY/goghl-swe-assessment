@@ -189,6 +189,7 @@ export interface OAuthStateDoc {
   _id: string;
   nonce: string;
   codeVerifier: string;
+  returnTo?: string;
   createdAt: Date;
   expiresAt: Date;
 }

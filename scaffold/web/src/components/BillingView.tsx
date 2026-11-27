@@ -318,14 +318,6 @@ export function BillingView({ me, workspace }: BillingViewProps) {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto bg-[#f6f7fc] p-4 sm:p-6 pb-16 lg:pb-6 space-y-5">
-      {/* Header + Section Tabs */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight m-0">Billing</h1>
-        <p className="text-xs sm:text-sm text-slate-500 mt-0.5 mb-0">
-          Manage your subscription, plan, seats, and payment history in <strong>{workspace}</strong>.
-        </p>
-      </div>
-
       <div className="flex items-center gap-5 border-b border-slate-200 overflow-x-auto">
         {(
           [

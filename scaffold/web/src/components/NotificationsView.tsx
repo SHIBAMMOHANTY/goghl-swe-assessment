@@ -131,56 +131,50 @@ export function NotificationsView({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto bg-[#f6f7fc] p-4 sm:p-6 pb-16 lg:pb-6">
       <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-5 pb-3">
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 m-0">Notifications</h1>
-            <p className="text-xs text-slate-500 mt-0.5 mb-0">
-              Real-time alerts and activity for <strong>{workspace}</strong>.
-            </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-3.5 border-b border-slate-200">
+          <div className="flex items-center gap-5 overflow-x-auto">
+            {(
+              [
+                ['all', 'All', counts.all],
+                ['unread', 'Unread', counts.unread],
+                ['mentions', 'Mentions', counts.mentions],
+                ['system', 'System', counts.system],
+              ] as const
+            ).map(([id, label, count]) => {
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTab(id)}
+                  className={`pb-2.5 text-xs font-semibold border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                    active
+                      ? 'border-[#602ee0] text-slate-900'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <span>{label}</span>
+                  {count > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                        active ? 'bg-[#602ee0] text-white' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
+
           <button
             type="button"
             onClick={markAllRead}
-            className="text-xs font-semibold text-[#602ee0] hover:underline cursor-pointer"
+            className="pb-2.5 text-xs font-semibold text-[#602ee0] hover:underline whitespace-nowrap cursor-pointer"
           >
             Mark all as read ✓
           </button>
-        </div>
-
-        <div className="flex items-center gap-5 px-5 border-b border-slate-200 overflow-x-auto">
-          {(
-            [
-              ['all', 'All', counts.all],
-              ['unread', 'Unread', counts.unread],
-              ['mentions', 'Mentions', counts.mentions],
-              ['system', 'System', counts.system],
-            ] as const
-          ).map(([id, label, count]) => {
-            const active = tab === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                className={`pb-2.5 text-xs font-semibold border-b-2 flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  active
-                    ? 'border-[#602ee0] text-slate-900'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <span>{label}</span>
-                {count > 0 && (
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
-                      active ? 'bg-[#602ee0] text-white' : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
         </div>
 
         <div className="divide-y divide-slate-100">

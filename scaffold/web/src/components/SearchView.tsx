@@ -250,15 +250,8 @@ export function SearchView({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-[#f7f8fc] pb-12 lg:pb-0">
-      {/* Top Search Header + Input + Category Tabs */}
-      <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 pt-4 pb-0 space-y-3.5">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-slate-900 m-0">Global Search</h1>
-          <p className="text-xs text-slate-500 mt-0.5 mb-0">
-            Search across conversations, contacts, messages, and notes in <strong>{workspace}</strong>.
-          </p>
-        </div>
-
+      {/* Search Input + Category Tabs */}
+      <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 pt-3.5 pb-0 space-y-3">
         {/* Purple-accented Search Input Bar with Clear Action */}
         <form
           onSubmit={(e) => {

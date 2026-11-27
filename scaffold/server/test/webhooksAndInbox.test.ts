@@ -946,6 +946,70 @@ describe('Pigeon webhooks, inbox, outbox, auth, and WebSockets', () => {
     assert.equal(getUpdatedMe.theme, 'system');
     assert.equal(getUpdatedMe.language, 'Hindi');
 
+    // Additional REST endpoints: /api/workspaces, /api/contacts/:id, /api/conversations/:id,
+    // PATCH /api/conversations/:id/status, GET /api/conversations/:id/notes
+    const workspacesRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/workspaces',
+      headers: { cookie: `sb_session=${benSession._id}` },
+    });
+    assert.equal(workspacesRes.status, 200);
+    const workspacesBody = workspacesRes.json() as {
+      workspaces: Array<{ id: string; role: string; name: string }>;
+    };
+    assert.equal(workspacesBody.workspaces.length, 1);
+    assert.equal(workspacesBody.workspaces[0].id, 'ws_acme');
+    assert.equal(workspacesBody.workspaces[0].name, 'Acme Support HQ');
+
+    const contactDetailRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/contacts/%2B14155550199?workspace=ws_acme',
+      headers: { cookie: `sb_session=${benSession._id}` },
+    });
+    assert.equal(contactDetailRes.status, 200);
+    assert.equal(
+      (contactDetailRes.json() as { contact: { name: string } }).contact.name,
+      'John Davis'
+    );
+
+    const convDetailRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/conversations/%2B14155550101?workspace=ws_acme',
+      headers: { cookie: `sb_session=${benSession._id}` },
+    });
+    assert.equal(convDetailRes.status, 200);
+    assert.equal(
+      (convDetailRes.json() as { conversation: { status: string } }).conversation.status,
+      'open'
+    );
+
+    const statusPatchRes = await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/conversations/%2B14155550101/status',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({ workspace: 'ws_acme', status: 'closed' }),
+    });
+    assert.equal(statusPatchRes.status, 200);
+    assert.equal((statusPatchRes.json() as { status: string }).status, 'closed');
+
+    await invokeApp(app, {
+      method: 'PATCH',
+      url: '/api/conversations/%2B14155550101/status',
+      headers: { 'content-type': 'application/json', cookie: `sb_session=${benSession._id}` },
+      body: JSON.stringify({ workspace: 'ws_acme', status: 'open' }),
+    });
+
+    const getNotesRes = await invokeApp(app, {
+      method: 'GET',
+      url: '/api/conversations/%2B14155550101/notes?workspace=ws_acme',
+      headers: { cookie: `sb_session=${benSession._id}` },
+    });
+    assert.equal(getNotesRes.status, 200);
+    assert.equal(
+      (getNotesRes.json() as { notes: Array<{ ciphertext: string }> }).notes[0].ciphertext,
+      'ZW5jcnlwdGVkX2J5dGVz'
+    );
+
     // Outbox lease expiration failover: simulate dead worker holding expired lease
     await db
       .collection<OutboundMessageDoc>(COLLECTIONS.outboundMessages)

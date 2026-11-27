@@ -104,9 +104,8 @@ export function InboxDashboard({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-white pb-12 lg:pb-0">
-      {/* Top Inbox Title + Filter Tabs (Screens 3, 7, 8, 9, 10) */}
-      <div className="px-4 sm:px-5 pt-3 border-b border-slate-200 bg-white">
-        <h1 className="text-lg sm:text-xl font-bold text-slate-900 m-0 mb-2">Inbox</h1>
+      {/* Filter Tabs (Screens 3, 7, 8, 9, 10) */}
+      <div className="px-4 sm:px-5 pt-2.5 border-b border-slate-200 bg-white">
         <div className="flex items-center gap-5 overflow-x-auto">
           {tabs.map((t) => {
             const active = filter === t.id || (filter === 'open' && t.id === 'all');

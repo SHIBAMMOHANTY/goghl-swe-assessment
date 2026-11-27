@@ -278,19 +278,16 @@ export function ContactsView({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-[#f7f8fc] pb-12 lg:pb-0">
-      {/* Top Title + Add Contact CTA */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3.5 bg-white border-b border-slate-200/80">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-slate-900 m-0">Contacts</h1>
-          <p className="text-xs text-slate-500 mt-0.5 mb-0">
-            Manage your customers and view their conversation history.
-          </p>
+      {/* Compact Action Bar */}
+      <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-white border-b border-slate-200/80">
+        <div className="text-xs text-slate-500 font-medium">
+          {directory ? `${directory.counts.all} total contacts` : 'Directory'}
         </div>
 
         <button
           type="button"
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6532eb] to-[#5624d6] hover:from-[#5726d8] hover:to-[#471bb8] text-white text-xs sm:text-sm font-semibold px-4 py-2 shadow-md shadow-indigo-600/20 cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6532eb] to-[#5624d6] hover:from-[#5726d8] hover:to-[#471bb8] text-white text-xs font-semibold px-3.5 py-1.5 shadow-sm shadow-indigo-600/20 cursor-pointer"
         >
           <span>+ Add Contact</span>
         </button>

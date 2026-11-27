@@ -388,15 +388,30 @@ export function TeamManagementView({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto bg-[#f5f6fc] p-4 sm:p-6 pb-16 lg:pb-6 space-y-5">
-      {/* Page Header + Tabs + Invite Agent CTA */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight m-0">
-            Team Management
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5 mb-0">
-            Manage your team, agents, roles, and permissions.
-          </p>
+      {/* Sub-navigation tabs + Invite Agent CTA */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
+        <div className="flex items-center gap-5 overflow-x-auto">
+          {(
+            [
+              ['overview', 'Overview'],
+              ['agents', 'Agents'],
+              ['roles', 'Roles & Permissions'],
+              ['queue', 'Conversation Queue'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              className={`pb-2 text-xs sm:text-[13px] font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
+                activeTab === id
+                  ? 'border-[#602ee0] text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <button
@@ -405,35 +420,10 @@ export function TeamManagementView({
             setInviteMsg(null);
             setShowInviteModal(true);
           }}
-          className="self-start sm:self-auto inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6532eb] to-[#5624d6] hover:from-[#5726d8] hover:to-[#471bb8] text-white text-xs sm:text-sm font-semibold px-4 py-2 shadow-md shadow-indigo-600/20 cursor-pointer"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#6532eb] to-[#5624d6] hover:from-[#5726d8] hover:to-[#471bb8] text-white text-xs font-semibold px-3.5 py-1.5 shadow-sm shadow-indigo-600/20 cursor-pointer"
         >
           <span>+ Invite Agent</span>
         </button>
-      </div>
-
-      {/* Sub-navigation tabs */}
-      <div className="flex items-center gap-5 border-b border-slate-200 overflow-x-auto">
-        {(
-          [
-            ['overview', 'Overview'],
-            ['agents', 'Agents'],
-            ['roles', 'Roles & Permissions'],
-            ['queue', 'Conversation Queue'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveTab(id)}
-            className={`pb-2.5 text-xs sm:text-[13px] font-semibold border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
-              activeTab === id
-                ? 'border-[#602ee0] text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
       </div>
 
       {activeTab === 'overview' && (

@@ -436,6 +436,8 @@ export function App() {
   return (
     <div className="h-screen flex overflow-hidden bg-[#f5f6fc] text-slate-900">
       <SidebarNav
+        me={me}
+        workspace={workspace}
         activeScreen={activeScreen}
         inboxFilter={filter}
         stats={dashboard?.stats ?? null}
@@ -449,6 +451,7 @@ export function App() {
         <AppHeader
           me={me}
           workspace={workspace}
+          activeScreen={activeScreen}
           onWorkspaceChange={(ws) => {
             setWorkspace(ws);
             setError(null);

@@ -4,11 +4,18 @@ import { createAuthRouter, type AuthRouterDeps } from './routes/auth.js';
 import { createGraderRouter, type GraderDeps } from './routes/grader.js';
 import { createWebhookRouter, type WebhookDeps } from './routes/webhooks.js';
 
+export interface HealthStatus {
+  ok: boolean;
+  mongo: boolean;
+  redis: boolean;
+}
+
 export interface AppDeps {
   grader?: GraderDeps;
   webhooks?: WebhookDeps;
   auth?: AuthRouterDeps;
   api?: ApiRouterDeps;
+  healthCheck?: () => Promise<HealthStatus>;
 }
 
 const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
@@ -20,8 +27,17 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 export function createApp(deps: AppDeps = {}): Express {
   const app = express();
 
-  app.get('/healthz', (_req, res) => {
-    res.json({ ok: true });
+  app.get('/healthz', async (_req, res) => {
+    if (!deps.healthCheck) {
+      res.status(200).json({ ok: true });
+      return;
+    }
+    try {
+      const status = await deps.healthCheck();
+      res.status(status.ok ? 200 : 503).json(status);
+    } catch {
+      res.status(503).json({ ok: false, mongo: false, redis: false });
+    }
   });
 
   // Webhooks read raw bytes for HMAC verification before JSON parsing.
